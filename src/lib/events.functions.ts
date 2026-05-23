@@ -1,0 +1,225 @@
+import { createServerFn } from "@tanstack/react-start";
+import { generateText, Output } from "ai";
+import { z } from "zod";
+import { createLovableAiGatewayProvider, DEFAULT_MODEL } from "./ai-gateway.server";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+const EventSchema = z.object({
+  headline: z.string(),
+  summary: z.string(),
+  category: z.string(),
+  sentiment: z.number().min(-1).max(1),
+  risk_score: z.number().min(0).max(100),
+  confidence: z.number().min(0).max(100),
+  countries: z.array(z.string()),
+  industries: z.array(z.string()),
+  sources: z.array(z.string()),
+  breaking: z.boolean(),
+});
+
+const BatchSchema = z.object({ events: z.array(EventSchema).min(6).max(14) });
+
+function getGateway() {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new Error("LOVABLE_API_KEY missing");
+  return createLovableAiGatewayProvider(key);
+}
+
+export const listEvents = createServerFn({ method: "GET" })
+  .inputValidator((input: { limit?: number; topics?: string[] } | undefined) => input ?? {})
+  .handler(async ({ data }) => {
+    const limit = data.limit ?? 30;
+    let q = supabaseAdmin
+      .from("events")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (data.topics && data.topics.length > 0) {
+      q = q.in("category", data.topics);
+    }
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    return { events: rows ?? [] };
+  });
+
+export const getEvent = createServerFn({ method: "GET" })
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data }) => {
+    const [{ data: event }, { data: impacts }, { data: predictions }] = await Promise.all([
+      supabaseAdmin.from("events").select("*").eq("id", data.id).maybeSingle(),
+      supabaseAdmin.from("event_impacts").select("*").eq("event_id", data.id),
+      supabaseAdmin
+        .from("event_predictions")
+        .select("*")
+        .eq("event_id", data.id)
+        .order("created_at", { ascending: true }),
+    ]);
+    return { event, impacts: impacts ?? [], predictions: predictions ?? [] };
+  });
+
+export const listImpactMarkers = createServerFn({ method: "GET" }).handler(async () => {
+  const { data, error } = await supabaseAdmin
+    .from("event_impacts")
+    .select("id,event_id,country_code,country_name,lat,lng,impact_score,narrative")
+    .order("impact_score", { ascending: false })
+    .limit(200);
+  if (error) throw new Error(error.message);
+  return { markers: data ?? [] };
+});
+
+export const generateEvents = createServerFn({ method: "POST" }).handler(async () => {
+  const gateway = getGateway();
+  const { output } = await generateText({
+    model: gateway(DEFAULT_MODEL),
+    output: Output.object({ schema: BatchSchema }),
+    system:
+      "You are GeoPulse AI, a real-time global intelligence engine. Generate diverse, plausible breaking events spanning geopolitics, markets, technology, energy, climate, defense, AI, and crypto. Be specific and grounded; avoid fictional country names. Sentiment is -1 (very negative) to 1 (very positive). Risk score 0-100. Confidence 0-100. Sources are realistic outlets (Reuters, Bloomberg, FT, Al Jazeera, Economic Times, Bloomberg, TechCrunch, X, Reddit).",
+    prompt:
+      "Generate 10 fresh global intelligence events for the next news cycle. Mix breaking and developing. Categories must be one of: Economy, AI, Crypto, Politics, Defense, Space, Startups, Technology, Sports, Climate, Commodities, Energy, Healthcare, Trade.",
+  });
+
+  const rows = output.events.map((e) => ({
+    headline: e.headline,
+    summary: e.summary,
+    category: e.category,
+    sentiment: e.sentiment,
+    risk_score: Math.round(e.risk_score),
+    confidence: Math.round(e.confidence),
+    countries: e.countries,
+    industries: e.industries,
+    sources: e.sources,
+    breaking: e.breaking,
+  }));
+
+  const { data, error } = await supabaseAdmin.from("events").insert(rows).select("id");
+  if (error) throw new Error(error.message);
+  return { inserted: data?.length ?? 0 };
+});
+
+const ImpactSchema = z.object({
+  countries: z
+    .array(
+      z.object({
+        country_code: z.string().length(2),
+        country_name: z.string(),
+        lat: z.number(),
+        lng: z.number(),
+        impact_score: z.number().min(0).max(100),
+        narrative: z.string(),
+      }),
+    )
+    .min(3)
+    .max(10),
+  predictions: z
+    .array(
+      z.object({
+        horizon: z.string(),
+        prediction: z.string(),
+        confidence: z.number().min(0).max(100),
+      }),
+    )
+    .min(3)
+    .max(6),
+});
+
+export const analyzeEvent = createServerFn({ method: "POST" })
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data }) => {
+    const { data: event } = await supabaseAdmin
+      .from("events")
+      .select("*")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!event) throw new Error("Event not found");
+
+    const { data: existing } = await supabaseAdmin
+      .from("event_impacts")
+      .select("id")
+      .eq("event_id", data.id)
+      .limit(1);
+    if (existing && existing.length > 0) return { cached: true };
+
+    const gateway = getGateway();
+    const { output } = await generateText({
+      model: gateway(DEFAULT_MODEL),
+      output: Output.object({ schema: ImpactSchema }),
+      system:
+        "You are GeoPulse AI's Impact Engine. Given a global event, analyze cascading effects across countries, economies, and markets. Use realistic ISO-3166 alpha-2 country codes and accurate capital-city coordinates. Be specific and concrete.",
+      prompt: `Analyze this event:\nHEADLINE: ${event.headline}\nSUMMARY: ${event.summary}\nCATEGORY: ${event.category}\nCOUNTRIES: ${(event.countries as string[]).join(", ")}\nINDUSTRIES: ${(event.industries as string[]).join(", ")}\n\nReturn 5-8 affected countries with impact narratives, and 4-6 forward predictions across horizons (24h, 1 week, 1 month, 3 months).`,
+    });
+
+    await supabaseAdmin.from("event_impacts").insert(
+      output.countries.map((c) => ({
+        event_id: data.id,
+        country_code: c.country_code,
+        country_name: c.country_name,
+        lat: c.lat,
+        lng: c.lng,
+        impact_score: Math.round(c.impact_score),
+        narrative: c.narrative,
+      })),
+    );
+    await supabaseAdmin.from("event_predictions").insert(
+      output.predictions.map((p) => ({
+        event_id: data.id,
+        horizon: p.horizon,
+        prediction: p.prediction,
+        confidence: Math.round(p.confidence),
+      })),
+    );
+    return { cached: false };
+  });
+
+// User actions (auth required)
+export const toggleSave = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { eventId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: existing } = await supabase
+      .from("saved_events")
+      .select("event_id")
+      .eq("event_id", data.eventId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (existing) {
+      await supabase.from("saved_events").delete().eq("event_id", data.eventId).eq("user_id", userId);
+      return { saved: false };
+    }
+    await supabase.from("saved_events").insert({ event_id: data.eventId, user_id: userId });
+    return { saved: true };
+  });
+
+export const castVote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { eventId: string; value: 1 | -1 }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await supabase
+      .from("votes")
+      .upsert({ event_id: data.eventId, user_id: userId, value: data.value });
+    return { ok: true };
+  });
+
+export const getMyInterests = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data } = await supabase.from("user_interests").select("topic");
+    return { topics: (data ?? []).map((r) => r.topic) };
+  });
+
+export const setMyInterests = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { topics: string[] }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await supabase.from("user_interests").delete().eq("user_id", userId);
+    if (data.topics.length > 0) {
+      await supabase
+        .from("user_interests")
+        .insert(data.topics.map((t) => ({ user_id: userId, topic: t })));
+    }
+    return { ok: true };
+  });
