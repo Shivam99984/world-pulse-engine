@@ -70,7 +70,7 @@ function GlobePage() {
           {typeof window !== "undefined" && (
             <Globe
               backgroundColor="rgba(0,0,0,0)"
-              globeImageUrl="//unpkg.com/three-globe/example/img/earth-day.jpg"
+              globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
               pointsData={points}
               pointAltitude={(d: object) => (d as { size: number }).size * 0.4}
               pointColor={(d: object) => (d as { color: string }).color}
@@ -80,8 +80,14 @@ function GlobePage() {
                 const id = (d as { eventId: string }).eventId;
                 if (id) router.navigate({ to: "/event/$id", params: { id } });
               }}
+              ringsData={points.filter((p) => p.size > 0.4)}
+              ringColor={(d: object) => () => (d as { color: string }).color}
+              ringMaxRadius={5}
+              ringPropagationSpeed={2}
+              ringRepeatPeriod={1400}
+              ringAltitude={0.01}
               atmosphereColor="#1978E5"
-              atmosphereAltitude={0.18}
+              atmosphereAltitude={0.22}
               width={undefined}
               height={600}
             />
