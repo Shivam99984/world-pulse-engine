@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Brain, Globe2, Loader2, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { analyzeEvent, getEvent } from "@/lib/events.functions";
+import { getEventAccuracy } from "@/lib/storylines.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/event/$id")({
@@ -22,11 +23,16 @@ function EventPage() {
   const qc = useQueryClient();
   const fetchEvent = useServerFn(getEvent);
   const analyze = useServerFn(analyzeEvent);
+  const accuracyFn = useServerFn(getEventAccuracy);
   const [running, setRunning] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["event", id],
     queryFn: () => fetchEvent({ data: { id } }),
+  });
+  const { data: acc } = useQuery({
+    queryKey: ["event-accuracy", id],
+    queryFn: () => accuracyFn({ data: { id } }),
   });
 
   if (isLoading) {
@@ -87,8 +93,21 @@ function EventPage() {
               Breaking
             </span>
           )}
-          <span className="ml-auto text-xs text-muted-foreground">
-            Risk {event.risk_score} · Confidence {event.confidence}%
+          <span className="ml-auto inline-flex items-center gap-2 text-xs text-muted-foreground">
+            {acc && acc.total > 0 && acc.accuracy !== null && (
+              <span
+                className={
+                  acc.accuracy >= 70
+                    ? "rounded-full bg-success/10 px-2 py-0.5 font-semibold text-success"
+                    : acc.accuracy >= 40
+                      ? "rounded-full bg-warning/10 px-2 py-0.5 font-semibold text-warning"
+                      : "rounded-full bg-danger/10 px-2 py-0.5 font-semibold text-danger"
+                }
+              >
+                {acc.accuracy}% community accuracy · {acc.total} votes
+              </span>
+            )}
+            <span>Risk {event.risk_score} · Confidence {event.confidence}%</span>
           </span>
         </div>
         <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">{event.headline}</h1>
