@@ -1,0 +1,15 @@
+# GeoPulse AI
+
+AI-powered global intelligence platform combining real-time news aggregation, social signal analysis, geopolitical risk mapping, and AI-driven economic impact prediction.
+
+## Key pages
+- / — Hero and product overview
+- /feed — Live intelligence feed of AI-clustered global events
+- /globe — Interactive 3D world heatmap of country impact
+- /social — Viral trends and market-moving social posts
+- /dashboard — Personalized AI brief based on user interests
+- /event/{id} — AI impact analysis and prediction timeline for a single event
+
+## Notes
+- All intelligence events are AI-generated via Lovable AI Gateway.
+- Authentication is required to save events, vote, and personalize the dashboard.
