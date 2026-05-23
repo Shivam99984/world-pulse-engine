@@ -20,6 +20,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as StorylineIdRouteImport } from './routes/storyline.$id'
 import { Route as EventIdRouteImport } from './routes/event.$id'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiPublicCronRefreshRouteImport } from './routes/api/public/cron-refresh'
 
 const StorylinesRoute = StorylinesRouteImport.update({
   id: '/storylines',
@@ -76,6 +77,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCronRefreshRoute = ApiPublicCronRefreshRouteImport.update({
+  id: '/api/public/cron-refresh',
+  path: '/api/public/cron-refresh',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/event/$id': typeof EventIdRoute
   '/storyline/$id': typeof StorylineIdRoute
+  '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/event/$id': typeof EventIdRoute
   '/storyline/$id': typeof StorylineIdRoute
+  '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/event/$id': typeof EventIdRoute
   '/storyline/$id': typeof StorylineIdRoute
+  '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/event/$id'
     | '/storyline/$id'
+    | '/api/public/cron-refresh'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/event/$id'
     | '/storyline/$id'
+    | '/api/public/cron-refresh'
   id:
     | '__root__'
     | '/'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/event/$id'
     | '/storyline/$id'
+    | '/api/public/cron-refresh'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +183,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   EventIdRoute: typeof EventIdRoute
   StorylineIdRoute: typeof StorylineIdRoute
+  ApiPublicCronRefreshRoute: typeof ApiPublicCronRefreshRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/cron-refresh': {
+      id: '/api/public/cron-refresh'
+      path: '/api/public/cron-refresh'
+      fullPath: '/api/public/cron-refresh'
+      preLoaderRoute: typeof ApiPublicCronRefreshRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -267,7 +287,18 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   EventIdRoute: EventIdRoute,
   StorylineIdRoute: StorylineIdRoute,
+  ApiPublicCronRefreshRoute: ApiPublicCronRefreshRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
