@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { analyzeEvent, getEvent } from "@/lib/events.functions";
 import { getEventAccuracy } from "@/lib/storylines.functions";
 import { toast } from "sonner";
+import { EventComments } from "@/components/event-comments";
 
 export const Route = createFileRoute("/event/$id")({
   head: ({ params }) => ({
@@ -196,6 +197,8 @@ function EventPage() {
               ))}
             </ol>
           </section>
+
+          <EventComments eventId={event.id} />
         </>
       )}
     </div>
