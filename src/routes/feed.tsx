@@ -95,6 +95,22 @@ function FeedPage() {
         </Button>
       </div>
 
+      <AnimatePresence>
+        {pending > 0 && (
+          <motion.button
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            onClick={loadNew}
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary shadow-glow"
+          >
+            <RadioTower className="h-3.5 w-3.5 animate-pulse" />
+            {pending} new {pending === 1 ? "event" : "events"} — tap to load
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+
       <div className="mt-6 flex flex-wrap gap-1.5">
         <button
           onClick={() => setActive([])}
