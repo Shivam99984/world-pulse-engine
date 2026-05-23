@@ -1,14 +1,16 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, RadioTower, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { IntelCard, IntelCardSkeleton, type IntelEvent } from "@/components/intel-card";
 import { generateEvents, listEvents } from "@/lib/events.functions";
 import { TOPICS } from "@/lib/topics";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { AnimatePresence, motion } from "framer-motion";
 
 export const Route = createFileRoute("/feed")({
   head: () => ({
@@ -31,6 +33,7 @@ function FeedPage() {
   const list = useServerFn(listEvents);
   const generate = useServerFn(generateEvents);
   const [generating, setGenerating] = useState(false);
+  const [pending, setPending] = useState(0);
 
   const { data, isLoading } = useQuery({
     queryKey: ["events", active],
@@ -38,6 +41,25 @@ function FeedPage() {
   });
 
   const events = (data?.events ?? []) as IntelEvent[];
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("events-live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "events" },
+        () => setPending((n) => n + 1),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  async function loadNew() {
+    setPending(0);
+    await qc.invalidateQueries({ queryKey: ["events"] });
+  }
 
   async function onGenerate() {
     setGenerating(true);
@@ -72,6 +94,22 @@ function FeedPage() {
           Generate fresh intel
         </Button>
       </div>
+
+      <AnimatePresence>
+        {pending > 0 && (
+          <motion.button
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            onClick={loadNew}
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary shadow-glow"
+          >
+            <RadioTower className="h-3.5 w-3.5 animate-pulse" />
+            {pending} new {pending === 1 ? "event" : "events"} — tap to load
+          </motion.button>
+        )}
+      </AnimatePresence>
+
 
       <div className="mt-6 flex flex-wrap gap-1.5">
         <button
