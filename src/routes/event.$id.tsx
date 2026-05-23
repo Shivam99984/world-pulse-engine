@@ -1,7 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Brain, Globe2, Loader2, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { analyzeEvent, getEvent } from "@/lib/events.functions";
@@ -40,6 +40,15 @@ function EventPage() {
   const event = data.event;
   const impacts = data.impacts;
   const predictions = data.predictions;
+
+  const autoFired = useRef(false);
+  useEffect(() => {
+    if (!autoFired.current && data && data.event && impacts.length === 0 && !running) {
+      autoFired.current = true;
+      void onAnalyze();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   async function onAnalyze() {
     setRunning(true);

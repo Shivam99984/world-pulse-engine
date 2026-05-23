@@ -1,15 +1,22 @@
 import { motion } from "framer-motion";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
   Bookmark,
   Flame,
   Globe2,
+  ThumbsDown,
+  ThumbsUp,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { castVote, toggleSave } from "@/lib/events.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export type IntelEvent = {
   id: string;
@@ -32,9 +39,64 @@ function riskTone(score: number) {
   return { label: "Low", color: "text-success", dot: "bg-success" };
 }
 
+async function requireAuth(router: ReturnType<typeof useRouter>) {
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) {
+    toast.message("Sign in required", { description: "Create an account to save and vote." });
+    router.navigate({ to: "/login" });
+    return false;
+  }
+  return true;
+}
+
 export function IntelCard({ event, index = 0 }: { event: IntelEvent; index?: number }) {
   const risk = riskTone(event.risk_score);
   const positive = event.sentiment >= 0;
+  const router = useRouter();
+  const save = useServerFn(toggleSave);
+  const vote = useServerFn(castVote);
+  const [saved, setSaved] = useState(false);
+  const [voted, setVoted] = useState<1 | -1 | 0>(0);
+  const [pending, setPending] = useState(false);
+
+  async function onSave(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (pending) return;
+    if (!(await requireAuth(router))) return;
+    setPending(true);
+    const next = !saved;
+    setSaved(next);
+    try {
+      const r = await save({ data: { eventId: event.id } });
+      setSaved(r.saved);
+      toast.success(r.saved ? "Saved to your brief" : "Removed from saved");
+    } catch (err) {
+      setSaved(!next);
+      toast.error("Couldn't update saved", { description: (err as Error).message });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function onVote(e: React.MouseEvent, value: 1 | -1) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (pending) return;
+    if (!(await requireAuth(router))) return;
+    setPending(true);
+    const prev = voted;
+    setVoted(value);
+    try {
+      await vote({ data: { eventId: event.id, value } });
+    } catch (err) {
+      setVoted(prev);
+      toast.error("Vote failed", { description: (err as Error).message });
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -83,7 +145,7 @@ export function IntelCard({ event, index = 0 }: { event: IntelEvent; index?: num
         {event.industries.slice(0, 3).map((i) => (
           <span
             key={i}
-            className="rounded-md bg-primary/8 px-1.5 py-0.5 font-medium text-primary"
+            className="rounded-md px-1.5 py-0.5 font-medium text-primary"
             style={{ backgroundColor: "color-mix(in oklab, var(--color-primary) 8%, transparent)" }}
           >
             {i}
@@ -99,20 +161,51 @@ export function IntelCard({ event, index = 0 }: { event: IntelEvent; index?: num
             ) : (
               <TrendingDown className="h-3.5 w-3.5 text-danger" />
             )}
-            Sentiment {(event.sentiment * 100).toFixed(0)}
+            {(event.sentiment * 100).toFixed(0)}
           </span>
           <span className="inline-flex items-center gap-1">
             <AlertTriangle className="h-3.5 w-3.5" />
-            Confidence {event.confidence}%
+            {event.confidence}%
           </span>
         </div>
-        <Link
-          to="/event/$id"
-          params={{ id: event.id }}
-          className="inline-flex items-center gap-1 text-primary hover:underline"
-        >
-          Analyze <ArrowUpRight className="h-3.5 w-3.5" />
-        </Link>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => onVote(e, 1)}
+            aria-label="Mark as accurate"
+            className={cn(
+              "rounded-md p-1.5 transition-colors hover:bg-secondary",
+              voted === 1 && "text-success",
+            )}
+          >
+            <ThumbsUp className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={(e) => onVote(e, -1)}
+            aria-label="Mark as inaccurate"
+            className={cn(
+              "rounded-md p-1.5 transition-colors hover:bg-secondary",
+              voted === -1 && "text-danger",
+            )}
+          >
+            <ThumbsDown className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={onSave}
+            aria-label="Save"
+            className="rounded-md p-1.5 transition-colors hover:bg-secondary"
+          >
+            <Bookmark
+              className={cn("h-3.5 w-3.5", saved ? "fill-primary text-primary" : "")}
+            />
+          </button>
+          <Link
+            to="/event/$id"
+            params={{ id: event.id }}
+            className="ml-1 inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            Analyze <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </div>
     </motion.div>
   );
@@ -133,11 +226,5 @@ export function IntelCardSkeleton() {
         <div className="h-4 w-12 rounded bg-muted" />
       </div>
     </div>
-  );
-}
-
-export function SavedBadge({ saved }: { saved?: boolean }) {
-  return (
-    <Bookmark className={cn("h-4 w-4", saved ? "fill-primary text-primary" : "text-muted-foreground")} />
   );
 }
