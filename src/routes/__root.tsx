@@ -10,6 +10,7 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { AskGeoPulse } from "@/components/ask-geopulse";
 
 import appCss from "../styles.css?url";
 
@@ -123,6 +124,7 @@ function RootComponent() {
         <SiteHeader />
         <Outlet />
         <SiteFooter />
+        <AskGeoPulse />
         <Toaster />
       </div>
     </QueryClientProvider>
