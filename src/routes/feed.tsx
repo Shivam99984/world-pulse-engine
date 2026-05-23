@@ -33,7 +33,9 @@ function FeedPage() {
   const [active, setActive] = useState<string[]>([]);
   const list = useServerFn(listEvents);
   const generate = useServerFn(generateEvents);
+  const ingest = useServerFn(ingestRealNews);
   const [generating, setGenerating] = useState(false);
+  const [ingesting, setIngesting] = useState(false);
   const [pending, setPending] = useState(0);
 
   const { data, isLoading } = useQuery({
@@ -77,6 +79,22 @@ function FeedPage() {
     }
   }
 
+  async function onIngest() {
+    setIngesting(true);
+    toast.message("Pulling live world headlines…", {
+      description: "Reuters · BBC · Al Jazeera · NPR, enriched by AI.",
+    });
+    try {
+      const r = await ingest();
+      toast.success(`Imported ${r.inserted} real-world events from ${r.fetched} headlines`);
+      await qc.invalidateQueries({ queryKey: ["events"] });
+    } catch (e) {
+      toast.error("Failed to ingest real news", { description: (e as Error).message });
+    } finally {
+      setIngesting(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -86,14 +104,24 @@ function FeedPage() {
             AI-clustered events across geopolitics, markets, technology, and social.
           </p>
         </div>
-        <Button onClick={onGenerate} disabled={generating} className="shadow-glow">
-          {generating ? (
-            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-          ) : (
-            <Sparkles className="mr-1 h-4 w-4" />
-          )}
-          Generate fresh intel
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={onIngest} disabled={ingesting} variant="outline">
+            {ingesting ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <RadioTower className="mr-1 h-4 w-4" />
+            )}
+            Ingest real news
+          </Button>
+          <Button onClick={onGenerate} disabled={generating} className="shadow-glow">
+            {generating ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-1 h-4 w-4" />
+            )}
+            Generate fresh intel
+          </Button>
+        </div>
       </div>
 
       <AnimatePresence>
