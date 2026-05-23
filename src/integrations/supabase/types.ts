@@ -14,7 +14,221 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      event_impacts: {
+        Row: {
+          country_code: string
+          country_name: string
+          created_at: string
+          event_id: string
+          id: string
+          impact_score: number
+          lat: number
+          lng: number
+          narrative: string
+        }
+        Insert: {
+          country_code: string
+          country_name: string
+          created_at?: string
+          event_id: string
+          id?: string
+          impact_score?: number
+          lat: number
+          lng: number
+          narrative: string
+        }
+        Update: {
+          country_code?: string
+          country_name?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          impact_score?: number
+          lat?: number
+          lng?: number
+          narrative?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_impacts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_predictions: {
+        Row: {
+          confidence: number
+          created_at: string
+          event_id: string
+          horizon: string
+          id: string
+          prediction: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          event_id: string
+          horizon: string
+          id?: string
+          prediction: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          event_id?: string
+          horizon?: string
+          id?: string
+          prediction?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_predictions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          breaking: boolean
+          category: string
+          confidence: number
+          countries: string[]
+          created_at: string
+          headline: string
+          id: string
+          industries: string[]
+          risk_score: number
+          sentiment: number
+          sources: string[]
+          summary: string
+        }
+        Insert: {
+          breaking?: boolean
+          category: string
+          confidence?: number
+          countries?: string[]
+          created_at?: string
+          headline: string
+          id?: string
+          industries?: string[]
+          risk_score?: number
+          sentiment?: number
+          sources?: string[]
+          summary: string
+        }
+        Update: {
+          breaking?: boolean
+          category?: string
+          confidence?: number
+          countries?: string[]
+          created_at?: string
+          headline?: string
+          id?: string
+          industries?: string[]
+          risk_score?: number
+          sentiment?: number
+          sources?: string[]
+          summary?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      saved_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_events_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_interests: {
+        Row: {
+          created_at: string
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          topic: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          topic?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      votes: {
+        Row: {
+          created_at: string
+          event_id: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          user_id: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "votes_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
