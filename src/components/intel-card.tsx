@@ -1,0 +1,143 @@
+import { motion } from "framer-motion";
+import { Link } from "@tanstack/react-router";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Bookmark,
+  Flame,
+  Globe2,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+export type IntelEvent = {
+  id: string;
+  headline: string;
+  summary: string;
+  category: string;
+  sentiment: number;
+  risk_score: number;
+  confidence: number;
+  countries: string[];
+  industries: string[];
+  sources: string[];
+  breaking: boolean;
+  created_at: string;
+};
+
+function riskTone(score: number) {
+  if (score >= 70) return { label: "High", color: "text-danger", dot: "bg-danger" };
+  if (score >= 40) return { label: "Elevated", color: "text-warning", dot: "bg-warning" };
+  return { label: "Low", color: "text-success", dot: "bg-success" };
+}
+
+export function IntelCard({ event, index = 0 }: { event: IntelEvent; index?: number }) {
+  const risk = riskTone(event.risk_score);
+  const positive = event.sentiment >= 0;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: Math.min(index * 0.04, 0.4) }}
+      className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elegant"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {event.category}
+          </span>
+          {event.breaking && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-danger">
+              <Flame className="h-3 w-3" /> Breaking
+            </span>
+          )}
+        </div>
+        <span className={cn("flex items-center gap-1 text-xs font-medium", risk.color)}>
+          <span className={cn("h-1.5 w-1.5 rounded-full", risk.dot)} />
+          Risk {event.risk_score}
+        </span>
+      </div>
+
+      <Link
+        to="/event/$id"
+        params={{ id: event.id }}
+        className="mt-3 block text-lg font-semibold leading-snug tracking-tight text-foreground group-hover:text-primary"
+      >
+        {event.headline}
+      </Link>
+
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground line-clamp-3">
+        {event.summary}
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+        {event.countries.slice(0, 4).map((c) => (
+          <span
+            key={c}
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5"
+          >
+            <Globe2 className="h-3 w-3" /> {c}
+          </span>
+        ))}
+        {event.industries.slice(0, 3).map((i) => (
+          <span
+            key={i}
+            className="rounded-md bg-primary/8 px-1.5 py-0.5 font-medium text-primary"
+            style={{ backgroundColor: "color-mix(in oklab, var(--color-primary) 8%, transparent)" }}
+          >
+            {i}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center gap-1">
+            {positive ? (
+              <TrendingUp className="h-3.5 w-3.5 text-success" />
+            ) : (
+              <TrendingDown className="h-3.5 w-3.5 text-danger" />
+            )}
+            Sentiment {(event.sentiment * 100).toFixed(0)}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Confidence {event.confidence}%
+          </span>
+        </div>
+        <Link
+          to="/event/$id"
+          params={{ id: event.id }}
+          className="inline-flex items-center gap-1 text-primary hover:underline"
+        >
+          Analyze <ArrowUpRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+    </motion.div>
+  );
+}
+
+export function IntelCardSkeleton() {
+  return (
+    <div className="animate-pulse rounded-xl border border-border bg-card p-5">
+      <div className="flex gap-2">
+        <div className="h-4 w-16 rounded-full bg-muted" />
+        <div className="h-4 w-20 rounded-full bg-muted" />
+      </div>
+      <div className="mt-3 h-5 w-3/4 rounded bg-muted" />
+      <div className="mt-2 h-4 w-full rounded bg-muted" />
+      <div className="mt-2 h-4 w-5/6 rounded bg-muted" />
+      <div className="mt-4 flex gap-1.5">
+        <div className="h-4 w-12 rounded bg-muted" />
+        <div className="h-4 w-12 rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
+
+export function SavedBadge({ saved }: { saved?: boolean }) {
+  return (
+    <Bookmark className={cn("h-4 w-4", saved ? "fill-primary text-primary" : "text-muted-foreground")} />
+  );
+}
