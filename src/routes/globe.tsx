@@ -71,10 +71,10 @@ function GlobePage() {
               backgroundColor="rgba(0,0,0,0)"
               globeImageUrl="//unpkg.com/three-globe/example/img/earth-day.jpg"
               pointsData={points}
-              pointAltitude={(d: { size: number }) => d.size * 0.4}
-              pointColor={(d: { color: string }) => d.color}
+              pointAltitude={(d: object) => (d as { size: number }).size * 0.4}
+              pointColor={(d: object) => (d as { color: string }).color}
               pointRadius={0.4}
-              pointLabel={(d: { label: string }) => d.label}
+              pointLabel={(d: object) => (d as { label: string }).label}
               atmosphereColor="#1978E5"
               atmosphereAltitude={0.18}
               width={undefined}
