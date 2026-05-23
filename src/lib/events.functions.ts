@@ -223,3 +223,45 @@ export const setMyInterests = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+const BriefSchema = z.object({
+  headline: z.string(),
+  summary: z.string(),
+  top_risks: z.array(z.string()).min(2).max(5),
+  opportunities: z.array(z.string()).min(1).max(4),
+  watchlist: z.array(z.string()).min(2).max(6),
+});
+
+export const generateBrief = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data: interests } = await supabase.from("user_interests").select("topic");
+    const topics = (interests ?? []).map((r) => r.topic);
+
+    let q = supabaseAdmin
+      .from("events")
+      .select("headline,summary,category,countries,risk_score,sentiment")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (topics.length > 0) q = q.in("category", topics);
+    const { data: events } = await q;
+
+    const ctx = (events ?? [])
+      .map(
+        (e, i) =>
+          `${i + 1}. [${e.category}] ${e.headline} — ${e.summary} (countries: ${(e.countries as string[]).join(", ")}; risk ${e.risk_score})`,
+      )
+      .join("\n");
+
+    const gateway = getGateway();
+    const { output } = await generateText({
+      model: gateway(DEFAULT_MODEL),
+      output: Output.object({ schema: BriefSchema }),
+      system:
+        "You are GeoPulse AI, an executive intelligence briefer. Produce a sharp, specific daily brief tailored to the user's interests. Be quantitative, name countries and companies, avoid hedging.",
+      prompt: `User interests: ${topics.length ? topics.join(", ") : "(all topics)"}\n\nRecent events:\n${ctx || "(none)"}\n\nWrite a personalized daily intelligence brief.`,
+    });
+    return { brief: output, generated_at: new Date().toISOString() };
+  });
+
