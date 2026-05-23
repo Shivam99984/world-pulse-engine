@@ -182,6 +182,65 @@ export type Database = {
           },
         ]
       }
+      storyline_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          ordinal: number
+          rationale: string | null
+          storyline_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          ordinal?: number
+          rationale?: string | null
+          storyline_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          ordinal?: number
+          rationale?: string | null
+          storyline_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storyline_events_storyline_id_fkey"
+            columns: ["storyline_id"]
+            isOneToOne: false
+            referencedRelation: "storylines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      storylines: {
+        Row: {
+          created_at: string
+          id: string
+          risk_score: number
+          tags: string[]
+          thesis: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          risk_score?: number
+          tags?: string[]
+          thesis: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          risk_score?: number
+          tags?: string[]
+          thesis?: string
+          title?: string
+        }
+        Relationships: []
+      }
       user_interests: {
         Row: {
           created_at: string

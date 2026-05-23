@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StorylinesRouteImport } from './routes/storylines'
 import { Route as SocialRouteImport } from './routes/social'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
@@ -16,9 +17,15 @@ import { Route as GlobeRouteImport } from './routes/globe'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as StorylineIdRouteImport } from './routes/storyline.$id'
 import { Route as EventIdRouteImport } from './routes/event.$id'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 
+const StorylinesRoute = StorylinesRouteImport.update({
+  id: '/storylines',
+  path: '/storylines',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SocialRoute = SocialRouteImport.update({
   id: '/social',
   path: '/social',
@@ -54,6 +61,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StorylineIdRoute = StorylineIdRouteImport.update({
+  id: '/storyline/$id',
+  path: '/storyline/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EventIdRoute = EventIdRouteImport.update({
   id: '/event/$id',
   path: '/event/$id',
@@ -73,8 +85,10 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/social': typeof SocialRoute
+  '/storylines': typeof StorylinesRoute
   '/api/chat': typeof ApiChatRoute
   '/event/$id': typeof EventIdRoute
+  '/storyline/$id': typeof StorylineIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -84,8 +98,10 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/social': typeof SocialRoute
+  '/storylines': typeof StorylinesRoute
   '/api/chat': typeof ApiChatRoute
   '/event/$id': typeof EventIdRoute
+  '/storyline/$id': typeof StorylineIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -96,8 +112,10 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/social': typeof SocialRoute
+  '/storylines': typeof StorylinesRoute
   '/api/chat': typeof ApiChatRoute
   '/event/$id': typeof EventIdRoute
+  '/storyline/$id': typeof StorylineIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -109,8 +127,10 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/social'
+    | '/storylines'
     | '/api/chat'
     | '/event/$id'
+    | '/storyline/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -120,8 +140,10 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/social'
+    | '/storylines'
     | '/api/chat'
     | '/event/$id'
+    | '/storyline/$id'
   id:
     | '__root__'
     | '/'
@@ -131,8 +153,10 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/social'
+    | '/storylines'
     | '/api/chat'
     | '/event/$id'
+    | '/storyline/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -143,12 +167,21 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   SocialRoute: typeof SocialRoute
+  StorylinesRoute: typeof StorylinesRoute
   ApiChatRoute: typeof ApiChatRoute
   EventIdRoute: typeof EventIdRoute
+  StorylineIdRoute: typeof StorylineIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/storylines': {
+      id: '/storylines'
+      path: '/storylines'
+      fullPath: '/storylines'
+      preLoaderRoute: typeof StorylinesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/social': {
       id: '/social'
       path: '/social'
@@ -198,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/storyline/$id': {
+      id: '/storyline/$id'
+      path: '/storyline/$id'
+      fullPath: '/storyline/$id'
+      preLoaderRoute: typeof StorylineIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/event/$id': {
       id: '/event/$id'
       path: '/event/$id'
@@ -223,8 +263,10 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   SocialRoute: SocialRoute,
+  StorylinesRoute: StorylinesRoute,
   ApiChatRoute: ApiChatRoute,
   EventIdRoute: EventIdRoute,
+  StorylineIdRoute: StorylineIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

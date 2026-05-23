@@ -20,6 +20,7 @@ export function SiteFooter() {
         <FooterCol title="Product">
           <FooterLink to="/feed">Live Feed</FooterLink>
           <FooterLink to="/globe">World Map</FooterLink>
+          <FooterLink to="/storylines">Storylines</FooterLink>
           <FooterLink to="/social">Social Intel</FooterLink>
           <FooterLink to="/dashboard">Dashboard</FooterLink>
         </FooterCol>
