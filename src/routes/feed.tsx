@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { IntelCard, IntelCardSkeleton, type IntelEvent } from "@/components/intel-card";
 import { generateEvents, listEvents } from "@/lib/events.functions";
+import { ingestRealNews } from "@/lib/sources.functions";
 import { TOPICS } from "@/lib/topics";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";

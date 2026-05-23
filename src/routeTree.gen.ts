@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as GlobeRouteImport } from './routes/globe'
 import { Route as FeedRouteImport } from './routes/feed'
+import { Route as DevelopersRouteImport } from './routes/developers'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StorylineIdRouteImport } from './routes/storyline.$id'
@@ -59,6 +60,11 @@ const FeedRoute = FeedRouteImport.update({
   path: '/feed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevelopersRoute = DevelopersRouteImport.update({
+  id: '/developers',
+  path: '/developers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -98,6 +104,7 @@ const ApiPublicV1EventsRoute = ApiPublicV1EventsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/developers': typeof DevelopersRoute
   '/feed': typeof FeedRoute
   '/globe': typeof GlobeRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/developers': typeof DevelopersRoute
   '/feed': typeof FeedRoute
   '/globe': typeof GlobeRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/developers': typeof DevelopersRoute
   '/feed': typeof FeedRoute
   '/globe': typeof GlobeRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/developers'
     | '/feed'
     | '/globe'
     | '/leaderboard'
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/dashboard'
+    | '/developers'
     | '/feed'
     | '/globe'
     | '/leaderboard'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/developers'
     | '/feed'
     | '/globe'
     | '/leaderboard'
@@ -198,6 +210,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  DevelopersRoute: typeof DevelopersRoute
   FeedRoute: typeof FeedRoute
   GlobeRoute: typeof GlobeRoute
   LeaderboardRoute: typeof LeaderboardRoute
@@ -263,6 +276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FeedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/developers': {
+      id: '/developers'
+      path: '/developers'
+      fullPath: '/developers'
+      preLoaderRoute: typeof DevelopersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -318,6 +338,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  DevelopersRoute: DevelopersRoute,
   FeedRoute: FeedRoute,
   GlobeRoute: GlobeRoute,
   LeaderboardRoute: LeaderboardRoute,
