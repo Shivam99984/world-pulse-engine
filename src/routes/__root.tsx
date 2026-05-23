@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 
 import appCss from "../styles.css?url";
 
@@ -121,6 +122,7 @@ function RootComponent() {
       <div className="min-h-screen bg-background text-foreground">
         <SiteHeader />
         <Outlet />
+        <SiteFooter />
         <Toaster />
       </div>
     </QueryClientProvider>
