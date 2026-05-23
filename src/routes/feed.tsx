@@ -33,6 +33,7 @@ function FeedPage() {
   const list = useServerFn(listEvents);
   const generate = useServerFn(generateEvents);
   const [generating, setGenerating] = useState(false);
+  const [pending, setPending] = useState(0);
 
   const { data, isLoading } = useQuery({
     queryKey: ["events", active],
@@ -40,6 +41,25 @@ function FeedPage() {
   });
 
   const events = (data?.events ?? []) as IntelEvent[];
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("events-live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "events" },
+        () => setPending((n) => n + 1),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  async function loadNew() {
+    setPending(0);
+    await qc.invalidateQueries({ queryKey: ["events"] });
+  }
 
   async function onGenerate() {
     setGenerating(true);
