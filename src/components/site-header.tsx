@@ -13,6 +13,7 @@ const NAV = [
   { to: "/social", label: "Social" },
   { to: "/dashboard", label: "Dashboard" },
   { to: "/leaderboard", label: "Leaderboard" },
+  { to: "/developers", label: "API" },
 ] as const;
 
 export function SiteHeader() {

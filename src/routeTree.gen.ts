@@ -16,12 +16,14 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as GlobeRouteImport } from './routes/globe'
 import { Route as FeedRouteImport } from './routes/feed'
+import { Route as DevelopersRouteImport } from './routes/developers'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StorylineIdRouteImport } from './routes/storyline.$id'
 import { Route as EventIdRouteImport } from './routes/event.$id'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiPublicCronRefreshRouteImport } from './routes/api/public/cron-refresh'
+import { Route as ApiPublicV1EventsRouteImport } from './routes/api/public/v1/events'
 
 const StorylinesRoute = StorylinesRouteImport.update({
   id: '/storylines',
@@ -58,6 +60,11 @@ const FeedRoute = FeedRouteImport.update({
   path: '/feed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevelopersRoute = DevelopersRouteImport.update({
+  id: '/developers',
+  path: '/developers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -88,10 +95,16 @@ const ApiPublicCronRefreshRoute = ApiPublicCronRefreshRouteImport.update({
   path: '/api/public/cron-refresh',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicV1EventsRoute = ApiPublicV1EventsRouteImport.update({
+  id: '/api/public/v1/events',
+  path: '/api/public/v1/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/developers': typeof DevelopersRoute
   '/feed': typeof FeedRoute
   '/globe': typeof GlobeRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -103,10 +116,12 @@ export interface FileRoutesByFullPath {
   '/event/$id': typeof EventIdRoute
   '/storyline/$id': typeof StorylineIdRoute
   '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
+  '/api/public/v1/events': typeof ApiPublicV1EventsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/developers': typeof DevelopersRoute
   '/feed': typeof FeedRoute
   '/globe': typeof GlobeRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -118,11 +133,13 @@ export interface FileRoutesByTo {
   '/event/$id': typeof EventIdRoute
   '/storyline/$id': typeof StorylineIdRoute
   '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
+  '/api/public/v1/events': typeof ApiPublicV1EventsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/developers': typeof DevelopersRoute
   '/feed': typeof FeedRoute
   '/globe': typeof GlobeRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -134,12 +151,14 @@ export interface FileRoutesById {
   '/event/$id': typeof EventIdRoute
   '/storyline/$id': typeof StorylineIdRoute
   '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
+  '/api/public/v1/events': typeof ApiPublicV1EventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/developers'
     | '/feed'
     | '/globe'
     | '/leaderboard'
@@ -151,10 +170,12 @@ export interface FileRouteTypes {
     | '/event/$id'
     | '/storyline/$id'
     | '/api/public/cron-refresh'
+    | '/api/public/v1/events'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/dashboard'
+    | '/developers'
     | '/feed'
     | '/globe'
     | '/leaderboard'
@@ -166,10 +187,12 @@ export interface FileRouteTypes {
     | '/event/$id'
     | '/storyline/$id'
     | '/api/public/cron-refresh'
+    | '/api/public/v1/events'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/developers'
     | '/feed'
     | '/globe'
     | '/leaderboard'
@@ -181,11 +204,13 @@ export interface FileRouteTypes {
     | '/event/$id'
     | '/storyline/$id'
     | '/api/public/cron-refresh'
+    | '/api/public/v1/events'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  DevelopersRoute: typeof DevelopersRoute
   FeedRoute: typeof FeedRoute
   GlobeRoute: typeof GlobeRoute
   LeaderboardRoute: typeof LeaderboardRoute
@@ -197,6 +222,7 @@ export interface RootRouteChildren {
   EventIdRoute: typeof EventIdRoute
   StorylineIdRoute: typeof StorylineIdRoute
   ApiPublicCronRefreshRoute: typeof ApiPublicCronRefreshRoute
+  ApiPublicV1EventsRoute: typeof ApiPublicV1EventsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -250,6 +276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FeedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/developers': {
+      id: '/developers'
+      path: '/developers'
+      fullPath: '/developers'
+      preLoaderRoute: typeof DevelopersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -292,12 +325,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronRefreshRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/v1/events': {
+      id: '/api/public/v1/events'
+      path: '/api/public/v1/events'
+      fullPath: '/api/public/v1/events'
+      preLoaderRoute: typeof ApiPublicV1EventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  DevelopersRoute: DevelopersRoute,
   FeedRoute: FeedRoute,
   GlobeRoute: GlobeRoute,
   LeaderboardRoute: LeaderboardRoute,
@@ -309,6 +350,7 @@ const rootRouteChildren: RootRouteChildren = {
   EventIdRoute: EventIdRoute,
   StorylineIdRoute: StorylineIdRoute,
   ApiPublicCronRefreshRoute: ApiPublicCronRefreshRoute,
+  ApiPublicV1EventsRoute: ApiPublicV1EventsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
