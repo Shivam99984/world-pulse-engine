@@ -2,14 +2,15 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, LogOut, Sparkles } from "lucide-react";
+import { Loader2, LogOut, Sparkles, AlertTriangle, TrendingUp, Eye, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { getMyInterests, listEvents, setMyInterests } from "@/lib/events.functions";
+import { generateBrief, getMyInterests, listEvents, setMyInterests } from "@/lib/events.functions";
 import { IntelCard, IntelCardSkeleton, type IntelEvent } from "@/components/intel-card";
 import { TOPICS } from "@/lib/topics";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -27,10 +28,14 @@ function DashboardPage() {
   const fetchInterests = useServerFn(getMyInterests);
   const saveInterests = useServerFn(setMyInterests);
   const list = useServerFn(listEvents);
+  const briefFn = useServerFn(generateBrief);
 
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [topics, setTopics] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [brief, setBrief] = useState<Awaited<ReturnType<typeof briefFn>> | null>(null);
+  const [briefLoading, setBriefLoading] = useState(false);
+
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
