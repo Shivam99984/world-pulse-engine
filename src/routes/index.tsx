@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { ArrowRight, BarChart3, Brain, Globe2, Radar, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { GlobeBackdrop } from "@/components/globe-backdrop";
+import DotField from "@/components/dot-field/DotField";
 import { NewsTicker } from "@/components/news-ticker";
 
 export const Route = createFileRoute("/")({
@@ -32,8 +32,18 @@ function Index() {
       {/* HERO */}
       <section className="relative isolate overflow-hidden">
         <div className="absolute inset-0 -z-10 grid-bg" />
-        <div className="absolute inset-0 -z-10 opacity-70">
-          <GlobeBackdrop />
+        <div className="absolute inset-0 -z-10">
+          <DotField
+            dotRadius={1.5}
+            dotSpacing={16}
+            bulgeStrength={75}
+            glowRadius={200}
+            sparkle
+            waveAmplitude={0.6}
+            gradientFrom="rgba(99, 130, 240, 0.55)"
+            gradientTo="rgba(160, 120, 240, 0.25)"
+            glowColor="rgba(99, 130, 240, 0.45)"
+          />
         </div>
         <div className="absolute inset-x-0 top-0 -z-10 h-[600px] bg-gradient-to-b from-primary/5 via-transparent to-transparent" />
 
