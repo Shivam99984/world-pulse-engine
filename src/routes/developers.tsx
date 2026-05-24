@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Copy, Key, Loader2, Plus, Trash2 } from "lucide-react";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { createApiKey, listApiKeys, revokeApiKey } from "@/lib/api-keys.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/developers")({
   head: () => ({
@@ -30,11 +31,35 @@ function DevPage() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [justCreated, setJustCreated] = useState<string | null>(null);
+  const [authed, setAuthed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setAuthed(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setAuthed(!!s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["api-keys"],
     queryFn: () => list(),
+    enabled: authed === true,
   });
+
+  if (authed === false) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-20 text-center">
+        <Key className="mx-auto h-8 w-8 text-muted-foreground" />
+        <h1 className="mt-4 text-2xl font-bold">Sign in to manage API keys</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Developer access requires an authenticated GeoPulse account.
+        </p>
+        <div className="mt-6 flex justify-center gap-2">
+          <Button asChild><Link to="/login">Sign in</Link></Button>
+          <Button asChild variant="outline"><Link to="/signup">Create account</Link></Button>
+        </div>
+      </div>
+    );
+  }
 
   async function onCreate() {
     if (!name.trim()) return;
