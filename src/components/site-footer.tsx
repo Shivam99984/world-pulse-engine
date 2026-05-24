@@ -1,10 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import { Globe2 } from "lucide-react";
+import { Threads } from "@/components/rb/Threads";
 
 export function SiteFooter() {
   return (
-    <footer className="mt-24 border-t border-border bg-card/30">
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-4">
+    <footer className="relative mt-24 overflow-hidden border-t border-border bg-card/30">
+      <div className="pointer-events-none absolute inset-0 opacity-30">
+        <Threads className="absolute inset-0 h-full w-full" count={4} />
+      </div>
+      <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-4">
         <div>
           <Link to="/" className="flex items-center gap-2">
             <div className="grid h-8 w-8 place-items-center rounded-md bg-gradient-to-br from-primary to-primary-glow text-primary-foreground shadow-glow">

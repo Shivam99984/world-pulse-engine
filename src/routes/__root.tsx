@@ -11,6 +11,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { AskGeoPulse } from "@/components/ask-geopulse";
+import { ClickSpark } from "@/components/rb/ClickSpark";
+import { SplashCursor } from "@/components/rb/SplashCursor";
 
 import appCss from "../styles.css?url";
 
@@ -121,6 +123,8 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-background text-foreground">
+        <SplashCursor />
+        <ClickSpark />
         <SiteHeader />
         <Outlet />
         <SiteFooter />
