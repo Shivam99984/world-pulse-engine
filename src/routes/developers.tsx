@@ -145,7 +145,7 @@ function DevPage() {
               {(error as Error).message}
             </div>
           )}
-          {!isLoading && (data?.keys?.length ?? 0) === 0 && (
+          {!error && !isLoading && (data?.keys?.length ?? 0) === 0 && (
             <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               No keys yet. Create one to start calling the API.
             </div>
