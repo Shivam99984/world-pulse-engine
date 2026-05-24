@@ -4,6 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { Suspense, lazy, useMemo } from "react";
 import { listImpactMarkers } from "@/lib/events.functions";
 import { Loader2 } from "lucide-react";
+import { SplitText } from "@/components/rb/SplitText";
+import { ScrambleText } from "@/components/rb/ScrambleText";
+import { Silk } from "@/components/rb/Silk";
 
 const Globe = lazy(() => import("react-globe.gl").then((m) => ({ default: m.default })));
 
@@ -47,17 +50,22 @@ function GlobePage() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <div className="pointer-events-none absolute inset-0 -z-10 opacity-60">
+        <Silk />
+      </div>
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Global Intelligence Map</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            <SplitText text="Global Intelligence Map" />
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Country pulses show where active events have the strongest impact.
           </p>
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-border bg-card shadow-soft" style={{ height: 600 }}>
+      <div className="mt-6 rounded-2xl border border-border bg-card/80 backdrop-blur shadow-soft" style={{ height: 600 }}>
         <Suspense
           fallback={
             <div className="grid h-full place-items-center text-muted-foreground">
@@ -105,7 +113,9 @@ function GlobePage() {
           >
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold">{m.country_name}</div>
-              <span className="text-xs text-muted-foreground">Impact {m.impact_score}</span>
+              <span className="text-xs text-muted-foreground font-mono">
+                Impact <ScrambleText text={String(m.impact_score)} duration={700} />
+              </span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{m.narrative}</p>
           </Link>
