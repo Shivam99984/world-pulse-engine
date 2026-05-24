@@ -39,9 +39,16 @@ function DevPage() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const { data, isLoading } = useQuery({
+  async function getAuthHeaders() {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("Sign in required");
+    return { Authorization: `Bearer ${token}` };
+  }
+
+  const { data, isLoading, error } = useQuery({
     queryKey: ["api-keys"],
-    queryFn: () => list(),
+    queryFn: async () => list({ headers: await getAuthHeaders() }),
     enabled: authed === true,
   });
 
@@ -65,7 +72,7 @@ function DevPage() {
     if (!name.trim()) return;
     setBusy(true);
     try {
-      const r = await create({ data: { name: name.trim() } });
+      const r = await create({ data: { name: name.trim() }, headers: await getAuthHeaders() });
       setJustCreated(r.key);
       setName("");
       qc.invalidateQueries({ queryKey: ["api-keys"] });
@@ -78,7 +85,7 @@ function DevPage() {
   }
 
   async function onRevoke(id: string) {
-    await revoke({ data: { id } });
+    await revoke({ data: { id }, headers: await getAuthHeaders() });
     qc.invalidateQueries({ queryKey: ["api-keys"] });
     toast.success("Key revoked");
   }
@@ -133,7 +140,12 @@ function DevPage() {
 
         <div className="mt-4 space-y-2">
           {isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
-          {!isLoading && (data?.keys?.length ?? 0) === 0 && (
+          {error && (
+            <div className="rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+              {(error as Error).message}
+            </div>
+          )}
+          {!error && !isLoading && (data?.keys?.length ?? 0) === 0 && (
             <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               No keys yet. Create one to start calling the API.
             </div>
