@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Copy, Key, Loader2, Plus, Trash2 } from "lucide-react";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { createApiKey, listApiKeys, revokeApiKey } from "@/lib/api-keys.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/developers")({
   head: () => ({
