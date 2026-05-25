@@ -68,6 +68,57 @@ export const listImpactMarkers = createServerFn({ method: "GET" }).handler(async
   return { markers: data ?? [] };
 });
 
+export const listCountryRisk = createServerFn({ method: "GET" }).handler(async () => {
+  const { data, error } = await supabaseAdmin
+    .from("event_impacts")
+    .select("country_code,country_name,lat,lng,impact_score,event_id,narrative,created_at")
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  if (error) throw new Error(error.message);
+
+  const byCountry = new Map<
+    string,
+    {
+      country_code: string;
+      country_name: string;
+      lat: number;
+      lng: number;
+      risk: number;
+      max_risk: number;
+      events: number;
+      last_event_id: string;
+      last_narrative: string;
+      last_at: string;
+    }
+  >();
+
+  for (const r of data ?? []) {
+    const key = r.country_code;
+    const prev = byCountry.get(key);
+    if (!prev) {
+      byCountry.set(key, {
+        country_code: r.country_code,
+        country_name: r.country_name,
+        lat: Number(r.lat),
+        lng: Number(r.lng),
+        risk: r.impact_score,
+        max_risk: r.impact_score,
+        events: 1,
+        last_event_id: r.event_id,
+        last_narrative: r.narrative,
+        last_at: r.created_at,
+      });
+    } else {
+      prev.events += 1;
+      prev.risk = Math.round((prev.risk * (prev.events - 1) + r.impact_score) / prev.events);
+      prev.max_risk = Math.max(prev.max_risk, r.impact_score);
+    }
+  }
+
+  const countries = Array.from(byCountry.values()).sort((a, b) => b.max_risk - a.max_risk);
+  return { countries, total_signals: data?.length ?? 0 };
+});
+
 export const generateEvents = createServerFn({ method: "POST" }).handler(async () => {
   const gateway = getGateway();
   const { output } = await generateText({

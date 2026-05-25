@@ -9,6 +9,7 @@ import type { Session } from "@supabase/supabase-js";
 const NAV = [
   { to: "/feed", label: "Feed" },
   { to: "/globe", label: "World Map" },
+  { to: "/heatmap", label: "Heatmap" },
   { to: "/storylines", label: "Storylines" },
   { to: "/social", label: "Social" },
   { to: "/dashboard", label: "Dashboard" },
