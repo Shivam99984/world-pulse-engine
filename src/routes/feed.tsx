@@ -1,9 +1,13 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, RadioTower, RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, RadioTower, RefreshCw, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { IntelCard, IntelCardSkeleton, type IntelEvent } from "@/components/intel-card";
 import { generateEvents, listEvents } from "@/lib/events.functions";
@@ -32,6 +36,11 @@ function FeedPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const [active, setActive] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  const [countries, setCountries] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [risk, setRisk] = useState<[number, number]>([0, 100]);
+  const [confidence, setConfidence] = useState<[number, number]>([0, 100]);
   const list = useServerFn(listEvents);
   const generate = useServerFn(generateEvents);
   const ingest = useServerFn(ingestRealNews);
@@ -44,7 +53,49 @@ function FeedPage() {
     queryFn: () => list({ data: { topics: active.length ? active : undefined, limit: 40 } }),
   });
 
-  const events = (data?.events ?? []) as IntelEvent[];
+  const allEvents = (data?.events ?? []) as IntelEvent[];
+
+  const { countryOptions, industryOptions } = useMemo(() => {
+    const c = new Set<string>();
+    const i = new Set<string>();
+    for (const e of allEvents) {
+      (e.countries ?? []).forEach((x) => c.add(x));
+      (e.industries ?? []).forEach((x) => i.add(x));
+    }
+    return {
+      countryOptions: Array.from(c).sort(),
+      industryOptions: Array.from(i).sort(),
+    };
+  }, [allEvents]);
+
+  const events = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return allEvents.filter((e) => {
+      if (e.risk_score < risk[0] || e.risk_score > risk[1]) return false;
+      if (e.confidence < confidence[0] || e.confidence > confidence[1]) return false;
+      if (countries.length && !(e.countries ?? []).some((c) => countries.includes(c))) return false;
+      if (industries.length && !(e.industries ?? []).some((x) => industries.includes(x))) return false;
+      if (q) {
+        const hay = `${e.headline} ${e.summary} ${(e.countries ?? []).join(" ")} ${(e.industries ?? []).join(" ")}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [allEvents, query, countries, industries, risk, confidence]);
+
+  const activeFilterCount =
+    countries.length +
+    industries.length +
+    (risk[0] !== 0 || risk[1] !== 100 ? 1 : 0) +
+    (confidence[0] !== 0 || confidence[1] !== 100 ? 1 : 0);
+
+  function clearFilters() {
+    setQuery("");
+    setCountries([]);
+    setIndustries([]);
+    setRisk([0, 100]);
+    setConfidence([0, 100]);
+  }
 
   useEffect(() => {
     const channel = supabase
@@ -176,6 +227,84 @@ function FeedPage() {
         })}
       </div>
 
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search headlines, countries, industries…"
+            className="pl-9"
+          />
+        </div>
+
+        <MultiSelectPopover
+          label="Countries"
+          options={countryOptions}
+          selected={countries}
+          onChange={setCountries}
+        />
+        <MultiSelectPopover
+          label="Industries"
+          options={industryOptions}
+          selected={industries}
+          onChange={setIndustries}
+        />
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Risk & confidence
+              {(risk[0] !== 0 || risk[1] !== 100 || confidence[0] !== 0 || confidence[1] !== 100) && (
+                <span className="ml-1 h-1.5 w-1.5 rounded-full bg-primary" />
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 space-y-5" align="end">
+            <RangeBlock label="Risk score" value={risk} onChange={(v) => setRisk(v as [number, number])} />
+            <RangeBlock
+              label="Prediction confidence"
+              value={confidence}
+              onChange={(v) => setConfidence(v as [number, number])}
+            />
+          </PopoverContent>
+        </Popover>
+
+        {activeFilterCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground">
+            <X className="h-3.5 w-3.5" />
+            Clear ({activeFilterCount})
+          </Button>
+        )}
+      </div>
+
+      {(countries.length > 0 || industries.length > 0) && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {countries.map((c) => (
+            <Badge key={c} variant="secondary" className="gap-1">
+              {c}
+              <button onClick={() => setCountries((p) => p.filter((x) => x !== c))}>
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+          {industries.map((i) => (
+            <Badge key={i} variant="outline" className="gap-1">
+              {i}
+              <button onClick={() => setIndustries((p) => p.filter((x) => x !== i))}>
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 text-xs text-muted-foreground">
+        Showing {events.length} of {allEvents.length} events
+      </div>
+
+
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {isLoading &&
           Array.from({ length: 9 }).map((_, i) => <IntelCardSkeleton key={i} />)}
@@ -195,3 +324,91 @@ function FeedPage() {
     </div>
   );
 }
+
+function MultiSelectPopover({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [q, setQ] = useState("");
+  const filtered = useMemo(
+    () => options.filter((o) => o.toLowerCase().includes(q.toLowerCase())),
+    [options, q],
+  );
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5">
+          {label}
+          {selected.length > 0 && (
+            <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+              {selected.length}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="end">
+        <div className="border-b border-border p-2">
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={`Search ${label.toLowerCase()}…`}
+            className="h-8"
+          />
+        </div>
+        <div className="max-h-60 overflow-auto p-1">
+          {filtered.length === 0 && (
+            <div className="px-3 py-4 text-center text-xs text-muted-foreground">No matches</div>
+          )}
+          {filtered.map((opt) => {
+            const on = selected.includes(opt);
+            return (
+              <button
+                key={opt}
+                onClick={() =>
+                  onChange(on ? selected.filter((x) => x !== opt) : [...selected, opt])
+                }
+                className={cn(
+                  "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent",
+                  on && "bg-accent",
+                )}
+              >
+                <span className="truncate">{opt}</span>
+                {on && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function RangeBlock({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: [number, number];
+  onChange: (next: number[]) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-xs">
+        <span className="font-medium">{label}</span>
+        <span className="font-mono text-muted-foreground">
+          {value[0]} – {value[1]}
+        </span>
+      </div>
+      <Slider value={value} onValueChange={onChange} min={0} max={100} step={1} />
+    </div>
+  );
+}
+
