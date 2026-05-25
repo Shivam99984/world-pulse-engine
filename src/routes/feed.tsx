@@ -324,3 +324,91 @@ function FeedPage() {
     </div>
   );
 }
+
+function MultiSelectPopover({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [q, setQ] = useState("");
+  const filtered = useMemo(
+    () => options.filter((o) => o.toLowerCase().includes(q.toLowerCase())),
+    [options, q],
+  );
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5">
+          {label}
+          {selected.length > 0 && (
+            <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+              {selected.length}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="end">
+        <div className="border-b border-border p-2">
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={`Search ${label.toLowerCase()}…`}
+            className="h-8"
+          />
+        </div>
+        <div className="max-h-60 overflow-auto p-1">
+          {filtered.length === 0 && (
+            <div className="px-3 py-4 text-center text-xs text-muted-foreground">No matches</div>
+          )}
+          {filtered.map((opt) => {
+            const on = selected.includes(opt);
+            return (
+              <button
+                key={opt}
+                onClick={() =>
+                  onChange(on ? selected.filter((x) => x !== opt) : [...selected, opt])
+                }
+                className={cn(
+                  "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent",
+                  on && "bg-accent",
+                )}
+              >
+                <span className="truncate">{opt}</span>
+                {on && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function RangeBlock({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: [number, number];
+  onChange: (next: number[]) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-xs">
+        <span className="font-medium">{label}</span>
+        <span className="font-mono text-muted-foreground">
+          {value[0]} – {value[1]}
+        </span>
+      </div>
+      <Slider value={value} onValueChange={onChange} min={0} max={100} step={1} />
+    </div>
+  );
+}
+
