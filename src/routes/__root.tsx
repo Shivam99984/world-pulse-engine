@@ -79,7 +79,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "AI-powered intelligence platform for real-time global news, economic forecasting, geopolitical analysis, and market impact prediction.",
       },
-      { property: "og:title", content: "GeoPulse AI" },
+      { property: "og:title", content: "GeoPulse AI — Understand how world events affect everything" },
       {
         property: "og:description",
         content:
@@ -87,6 +87,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "GeoPulse AI — Understand how world events affect everything" },
+      { name: "description", content: "A modern AI intelligence platform that combines live global news, social media trends, sentiment analysis, market insights, and AI summaries into one powerful" },
+      { property: "og:description", content: "A modern AI intelligence platform that combines live global news, social media trends, sentiment analysis, market insights, and AI summaries into one powerful" },
+      { name: "twitter:description", content: "A modern AI intelligence platform that combines live global news, social media trends, sentiment analysis, market insights, and AI summaries into one powerful" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/ab88c2a6-2564-4950-8795-cc85f52a559f" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/ab88c2a6-2564-4950-8795-cc85f52a559f" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
