@@ -36,6 +36,11 @@ function FeedPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const [active, setActive] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  const [countries, setCountries] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [risk, setRisk] = useState<[number, number]>([0, 100]);
+  const [confidence, setConfidence] = useState<[number, number]>([0, 100]);
   const list = useServerFn(listEvents);
   const generate = useServerFn(generateEvents);
   const ingest = useServerFn(ingestRealNews);
@@ -48,7 +53,49 @@ function FeedPage() {
     queryFn: () => list({ data: { topics: active.length ? active : undefined, limit: 40 } }),
   });
 
-  const events = (data?.events ?? []) as IntelEvent[];
+  const allEvents = (data?.events ?? []) as IntelEvent[];
+
+  const { countryOptions, industryOptions } = useMemo(() => {
+    const c = new Set<string>();
+    const i = new Set<string>();
+    for (const e of allEvents) {
+      (e.countries ?? []).forEach((x) => c.add(x));
+      (e.industries ?? []).forEach((x) => i.add(x));
+    }
+    return {
+      countryOptions: Array.from(c).sort(),
+      industryOptions: Array.from(i).sort(),
+    };
+  }, [allEvents]);
+
+  const events = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return allEvents.filter((e) => {
+      if (e.risk_score < risk[0] || e.risk_score > risk[1]) return false;
+      if (e.confidence < confidence[0] || e.confidence > confidence[1]) return false;
+      if (countries.length && !(e.countries ?? []).some((c) => countries.includes(c))) return false;
+      if (industries.length && !(e.industries ?? []).some((x) => industries.includes(x))) return false;
+      if (q) {
+        const hay = `${e.headline} ${e.summary} ${(e.countries ?? []).join(" ")} ${(e.industries ?? []).join(" ")}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [allEvents, query, countries, industries, risk, confidence]);
+
+  const activeFilterCount =
+    countries.length +
+    industries.length +
+    (risk[0] !== 0 || risk[1] !== 100 ? 1 : 0) +
+    (confidence[0] !== 0 || confidence[1] !== 100 ? 1 : 0);
+
+  function clearFilters() {
+    setQuery("");
+    setCountries([]);
+    setIndustries([]);
+    setRisk([0, 100]);
+    setConfidence([0, 100]);
+  }
 
   useEffect(() => {
     const channel = supabase
