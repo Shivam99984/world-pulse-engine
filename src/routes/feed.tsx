@@ -1,9 +1,13 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, RadioTower, RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, RadioTower, RefreshCw, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { IntelCard, IntelCardSkeleton, type IntelEvent } from "@/components/intel-card";
 import { generateEvents, listEvents } from "@/lib/events.functions";
