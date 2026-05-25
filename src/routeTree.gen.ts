@@ -14,6 +14,7 @@ import { Route as SocialRouteImport } from './routes/social'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
+import { Route as HeatmapRouteImport } from './routes/heatmap'
 import { Route as GlobeRouteImport } from './routes/globe'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as DevelopersRouteImport } from './routes/developers'
@@ -48,6 +49,11 @@ const LoginRoute = LoginRouteImport.update({
 const LeaderboardRoute = LeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HeatmapRoute = HeatmapRouteImport.update({
+  id: '/heatmap',
+  path: '/heatmap',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GlobeRoute = GlobeRouteImport.update({
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/developers': typeof DevelopersRoute
   '/feed': typeof FeedRoute
   '/globe': typeof GlobeRoute
+  '/heatmap': typeof HeatmapRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/developers': typeof DevelopersRoute
   '/feed': typeof FeedRoute
   '/globe': typeof GlobeRoute
+  '/heatmap': typeof HeatmapRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/developers': typeof DevelopersRoute
   '/feed': typeof FeedRoute
   '/globe': typeof GlobeRoute
+  '/heatmap': typeof HeatmapRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/developers'
     | '/feed'
     | '/globe'
+    | '/heatmap'
     | '/leaderboard'
     | '/login'
     | '/signup'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/developers'
     | '/feed'
     | '/globe'
+    | '/heatmap'
     | '/leaderboard'
     | '/login'
     | '/signup'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/developers'
     | '/feed'
     | '/globe'
+    | '/heatmap'
     | '/leaderboard'
     | '/login'
     | '/signup'
@@ -213,6 +225,7 @@ export interface RootRouteChildren {
   DevelopersRoute: typeof DevelopersRoute
   FeedRoute: typeof FeedRoute
   GlobeRoute: typeof GlobeRoute
+  HeatmapRoute: typeof HeatmapRoute
   LeaderboardRoute: typeof LeaderboardRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
@@ -260,6 +273,13 @@ declare module '@tanstack/react-router' {
       path: '/leaderboard'
       fullPath: '/leaderboard'
       preLoaderRoute: typeof LeaderboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/heatmap': {
+      id: '/heatmap'
+      path: '/heatmap'
+      fullPath: '/heatmap'
+      preLoaderRoute: typeof HeatmapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/globe': {
@@ -341,6 +361,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevelopersRoute: DevelopersRoute,
   FeedRoute: FeedRoute,
   GlobeRoute: GlobeRoute,
+  HeatmapRoute: HeatmapRoute,
   LeaderboardRoute: LeaderboardRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
