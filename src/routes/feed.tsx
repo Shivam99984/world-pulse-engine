@@ -227,6 +227,84 @@ function FeedPage() {
         })}
       </div>
 
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search headlines, countries, industries…"
+            className="pl-9"
+          />
+        </div>
+
+        <MultiSelectPopover
+          label="Countries"
+          options={countryOptions}
+          selected={countries}
+          onChange={setCountries}
+        />
+        <MultiSelectPopover
+          label="Industries"
+          options={industryOptions}
+          selected={industries}
+          onChange={setIndustries}
+        />
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Risk & confidence
+              {(risk[0] !== 0 || risk[1] !== 100 || confidence[0] !== 0 || confidence[1] !== 100) && (
+                <span className="ml-1 h-1.5 w-1.5 rounded-full bg-primary" />
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 space-y-5" align="end">
+            <RangeBlock label="Risk score" value={risk} onChange={(v) => setRisk(v as [number, number])} />
+            <RangeBlock
+              label="Prediction confidence"
+              value={confidence}
+              onChange={(v) => setConfidence(v as [number, number])}
+            />
+          </PopoverContent>
+        </Popover>
+
+        {activeFilterCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground">
+            <X className="h-3.5 w-3.5" />
+            Clear ({activeFilterCount})
+          </Button>
+        )}
+      </div>
+
+      {(countries.length > 0 || industries.length > 0) && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {countries.map((c) => (
+            <Badge key={c} variant="secondary" className="gap-1">
+              {c}
+              <button onClick={() => setCountries((p) => p.filter((x) => x !== c))}>
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+          {industries.map((i) => (
+            <Badge key={i} variant="outline" className="gap-1">
+              {i}
+              <button onClick={() => setIndustries((p) => p.filter((x) => x !== i))}>
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 text-xs text-muted-foreground">
+        Showing {events.length} of {allEvents.length} events
+      </div>
+
+
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {isLoading &&
           Array.from({ length: 9 }).map((_, i) => <IntelCardSkeleton key={i} />)}
