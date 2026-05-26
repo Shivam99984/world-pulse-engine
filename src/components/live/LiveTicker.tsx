@@ -48,7 +48,7 @@ export function LiveTicker({ className }: { className?: string }) {
     };
   }, [qc]);
 
-  const quotes = ((data?.quotes as Quote[]) ?? []).filter((q) => q.price > 0);
+  const quotes = ((data?.quotes as unknown as Quote[]) ?? []).filter((q) => q.price > 0);
   if (quotes.length === 0) {
     return (
       <div className={cn("h-10 border-y border-border/60 bg-card/40 backdrop-blur", className)} aria-hidden />
