@@ -9,6 +9,8 @@ import { SplitText } from "@/components/rb/SplitText";
 import { ScrambleText } from "@/components/rb/ScrambleText";
 import { Silk } from "@/components/rb/Silk";
 import { cn } from "@/lib/utils";
+import { LiveTicker } from "@/components/live/LiveTicker";
+import { LiveStatsBar } from "@/components/live/LiveStatsBar";
 
 export const Route = createFileRoute("/heatmap")({
   head: () => ({
@@ -88,6 +90,8 @@ function HeatmapPage() {
         <Silk />
       </div>
 
+      <LiveTicker className="mb-6 -mx-4 sm:-mx-6" />
+
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
@@ -110,6 +114,8 @@ function HeatmapPage() {
           <Stat label="Avg Risk" value={stats.avg} tone="text-primary" />
         </div>
       </div>
+
+      <LiveStatsBar className="mt-6" />
 
       <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-card/70 shadow-soft backdrop-blur">
         <div className="flex items-center justify-between border-b border-border/60 px-4 py-2 text-xs text-muted-foreground">

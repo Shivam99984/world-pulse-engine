@@ -238,3 +238,15 @@
   50% { transform: translate3d(-2%, 1%, 0) scale(1.05); }
 }
 
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 45s linear infinite;
+  will-change: transform;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}

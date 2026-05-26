@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AnimatePresence, motion } from "framer-motion";
 import { SplitText } from "@/components/rb/SplitText";
+import { LiveTicker } from "@/components/live/LiveTicker";
+import { LiveStatsBar } from "@/components/live/LiveStatsBar";
 
 export const Route = createFileRoute("/feed")({
   head: () => ({
@@ -149,6 +151,7 @@ function FeedPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <LiveTicker className="mb-6 -mx-4 sm:-mx-6" />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
@@ -177,6 +180,8 @@ function FeedPage() {
           </Button>
         </div>
       </div>
+
+      <LiveStatsBar className="mt-6" />
 
       <AnimatePresence>
         {pending > 0 && (

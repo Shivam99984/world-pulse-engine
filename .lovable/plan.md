@@ -1,92 +1,87 @@
-# Awwwards-grade redesign with React Bits
+# Add Live Data
 
-Goal: make GeoPulse feel alive on first paint — a "what an amazing website" reaction within 2 seconds. Bold motion register, layered backdrops, scroll-triggered reveals, magnetic interactions. Locked palette/type (current blue/violet + Inter) stays — only motion + composition change.
+Real signals + live UI across Feed, Heatmap, and Home.
 
-## Setup
+## 1. Real news ingestion (no API key needed)
 
-1. Register the React Bits registry in `components.json`:
-   ```json
-   "registries": { "@react-bits": "https://reactbits.dev/r/{name}.json" }
-   ```
-2. Install React Bits components via the shadcn CLI (one batch). Picks below.
+Use **GDELT 2.0 Doc API** (free, no key) as the primary news source. Tap GDELT's `doc` endpoint for the last 15 minutes of global English-language news, then feed the headlines/snippets into the existing AI pipeline to structure them into the `events` table — replacing the purely synthetic generator.
 
-## Components from React Bits
+- New server fn `ingestRealEvents()` in `src/lib/ingest.functions.ts`:
+  1. `fetch("https://api.gdeltproject.org/api/v2/doc/doc?...&format=json&maxrecords=30&timespan=15min")`
+  2. Deduplicate by headline (case-insensitive) against the last 200 rows in `events`.
+  3. Pass batches of ~10 fresh articles to the AI gateway (`google/gemini-3-flash-preview`) with a new prompt that **summarizes the real article** into our `EventSchema` (headline, summary, category, sentiment, risk_score, confidence, countries, industries, sources, breaking). Sources carry the actual outlet domains GDELT returns.
+  4. Bulk insert into `events`.
+- Update `/api/public/cron-refresh` to call `ingestRealEvents()` first; if 0 inserted, fall back to the existing `generateEvents()` so the feed never goes empty.
+- Keep `generateEvents()` exported as a manual "demo refill" button on `/dashboard`.
 
-**Backgrounds (WebGL/canvas, layered behind hero & section bands)**
-- `Aurora` — animated aurora ribbons for home hero backdrop (replaces current DotField as primary; DotField becomes secondary mid-page accent)
-- `Silk` — silky gradient mesh for the Globe page backdrop
-- `Beams` / `LightRays` — diagonal light shafts behind feed header
-- `Threads` — animated thread mesh as footer band
+## 2. Live market & economic data
 
-**Text effects**
-- `SplitText` — letter-by-letter entrance on every H1/H2 (home, feed, globe, dashboard, developers)
-- `ShinyText` — for the "AI-powered global intelligence — live" eyebrow
-- `GradientText` — replace current `.gradient-text` for the "world events" word with animated gradient
-- `ScrambleText` — for the floating intel card values (Brent, BTC etc.) — looks like a Bloomberg terminal
-- `RotatingText` — in hero subline, rotating through "markets", "geopolitics", "supply chains", "sentiment"
+New `market_quotes` table + server fn that polls free public APIs and writes a fresh snapshot every minute.
 
-**Scroll & reveal**
-- `ScrollFloat` / `ScrollReveal` — features grid items rise + fade on enter
-- `AnimatedList` — for feed cards staggered entrance
-- `TiltedCard` — for the 6 feature cards (3D tilt on hover)
+Migration:
 
-**Interactive**
-- `SplashCursor` — global custom cursor (fluid splash trail) mounted in `__root.tsx`
-- `MagnetLines` / `Magnet` — magnetic CTA buttons (Explore intelligence, Create account)
-- `ClickSpark` — click feedback globally
-- `PixelTransition` — page transition wrapper between routes
+```text
+market_quotes
+  symbol text PK     -- BTC, ETH, GOLD, OIL, EURUSD, USDJPY, GBPUSD, SPX, NDX
+  label text         -- "Bitcoin", "Brent Crude", ...
+  category text      -- crypto | fx | commodity | index
+  price numeric
+  change_24h numeric -- percentage
+  history jsonb      -- last 30 points [{t, v}] for sparkline
+  updated_at timestamptz
+RLS: public_read = true; writes via supabaseAdmin only
+realtime: ADD TABLE market_quotes TO publication supabase_realtime
+```
 
-## Page-by-page plan
+Server fn `refreshMarkets()` in `src/lib/markets.functions.ts`:
+- Crypto: `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true`
+- FX: `https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR,JPY,GBP,CNY` (free, no key, ECB-backed)
+- Commodities + indices: `https://query1.finance.yahoo.com/v7/finance/quote?symbols=GC=F,CL=F,^GSPC,^NDX` (free)
+- For each symbol, append a `{t, v}` point to `history` (trim to 30), upsert row.
 
-### Global (`__root.tsx`)
-- Mount `SplashCursor` (hidden on touch/`prefers-reduced-motion`)
-- Mount `ClickSpark` overlay
-- Wrap `<Outlet/>` in `PixelTransition` for route transitions
-- Site header: add subtle `Threads` background strip, `ShinyText` logo wordmark
+Server route `/api/public/cron-markets` (POST) calls `refreshMarkets()` so an external scheduler can hit it every 60s. The Feed/Heatmap/Home `LiveTicker` also calls `refreshMarkets()` opportunistically when stale (>60s) so the data feels live even without an external cron.
 
-### Home (`/`)
-- Replace hero backdrop stack: `Aurora` (full) + grid-bg + DotField at 30% opacity as foreground particles
-- H1: `SplitText` entrance, "world events" → `GradientText` with animated sweep
-- Eyebrow chip: `ShinyText`
-- Subline: insert `RotatingText` ("…affect everything" → cycles markets/supply chains/sentiment/geopolitics)
-- CTAs: wrap in `Magnet` (5px pull)
-- Floating intel cards: values → `ScrambleText` on mount; cards use `TiltedCard`
-- Features section: each card `TiltedCard` + `ScrollReveal` stagger
-- Final CTA band: add `Beams` backdrop behind gradient
+Read fn `listMarketQuotes()` returns the full table; consumed by TanStack Query with `refetchInterval: 15_000` and a Supabase realtime channel to invalidate immediately on updates.
 
-### Feed (`/feed`)
-- Page header H1: `SplitText`
-- Filter bar: `Magnet` chips
-- Intel cards list: `AnimatedList` staggered fade-up on scroll
-- Empty state: `ScrambleText` placeholder
+## 3. Global live UI
 
-### Globe (`/globe`)
-- Backdrop: `Silk` behind the 3D globe (low opacity)
-- Page H1: `SplitText`
-- Stats sidebar: `ScrambleText` on numeric values
-- `LightRays` behind page title bar
+Three reusable components in `src/components/live/`:
 
-### Footer
-- `Threads` animated background band
+- `LiveTicker.tsx` — horizontal scrolling marquee at the top of Feed, Heatmap, and Home hero. Renders each market quote with symbol, price, 24h % (green/red), and a tiny 30-point inline SVG sparkline. Subscribes to the markets query.
+- `LiveStatsBar.tsx` — compact row of counters: **events/min** (rolling 5-min average from `events.created_at`), **active countries** (distinct `country_code` in last hour from `event_impacts`), **avg risk** (mean of last 50 events' `risk_score`), **markets up/down** (count from quotes). Updates via TanStack Query (`refetchInterval: 10_000`) + `postgres_changes` subscriptions on `events` and `event_impacts`.
+- `Sparkline.tsx` — pure SVG sparkline (props: `points: number[]`, `color`, `width`, `height`); no chart lib dependency.
 
-## Performance & a11y guards
-- All WebGL backdrops lazy-loaded (`React.lazy` + Suspense fallback to current static backdrop)
-- Every motion component checks `prefers-reduced-motion` and downgrades to static
-- `SplashCursor` disabled on `pointer: coarse` (mobile)
-- One WebGL canvas per route max (Aurora on home, Silk on globe — never both at once)
+New server fn `liveStats()` aggregates the three counters in one round-trip via `supabaseAdmin`.
 
-## Color tokens (locked, unchanged)
-Current brand blue `oklch(0.583 0.166 256)` + violet glow stays. New animated gradients use:
-- Aurora: `#1978E5 → #7C3AED → #06B6D4` (matches existing primary/glow)
-- Beams/LightRays: primary at 25% opacity over background
+Surface integration:
+- **Home (`/`)**: `LiveTicker` directly under hero CTA + `LiveStatsBar` above feature grid.
+- **Feed (`/feed`)**: `LiveTicker` above filters, `LiveStatsBar` between filters and event list.
+- **Heatmap (`/heatmap`)**: `LiveStatsBar` replacing the current static stats row; `LiveTicker` above the map section.
 
-## Technical notes
-- React Bits drops files into `src/components/ui/` or `src/components/` via shadcn CLI
-- TanStack Start: dynamic-import WebGL components with `{ ssr: false }` pattern (use `React.lazy` + Suspense — Three.js/canvas can't SSR on workerd)
-- Keep DotField (already integrated) — repurposed as secondary layer, not removed
-- No backend/data changes, no route additions, no auth changes
+## 4. Technical notes
 
-## Out of scope
-- New pages or features
-- Color/typography changes
-- Removing existing functionality
+- All fetches happen in server fns — no external API keys leak to the client.
+- GDELT, Frankfurter, CoinGecko, Yahoo Finance all support CORS-free server fetches; no Node-only deps required (Worker-compatible).
+- Existing `attachSupabaseAuth` middleware unaffected; new fns are public reads via `supabaseAdmin` (no auth needed for the ticker/stats).
+- New realtime channel on `market_quotes` added to `supabase_realtime` publication.
+- Failure isolation: each upstream source wrapped in try/catch so one bad provider doesn't blank the ticker.
+
+## Files
+
+Create:
+- `src/lib/ingest.functions.ts`
+- `src/lib/markets.functions.ts`
+- `src/lib/live-stats.functions.ts`
+- `src/routes/api/public/cron-markets.ts`
+- `src/components/live/LiveTicker.tsx`
+- `src/components/live/LiveStatsBar.tsx`
+- `src/components/live/Sparkline.tsx`
+
+Edit:
+- `src/routes/api/public/cron-refresh.ts` — call `ingestRealEvents()` first
+- `src/routes/index.tsx` — mount ticker + stats
+- `src/routes/feed.tsx` — mount ticker + stats
+- `src/routes/heatmap.tsx` — swap static stats for `LiveStatsBar`, add ticker
+
+Migration:
+- `market_quotes` table + RLS + realtime publication.
