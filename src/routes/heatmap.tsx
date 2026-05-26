@@ -243,25 +243,90 @@ function Legend() {
   );
 }
 
+function isLand(lng: number, lat: number) {
+  // North America
+  if (lat > 30 && lat < 60 && lng > -130 && lng < -65) return true;
+  if (lat > 15 && lat < 32 && lng > -115 && lng < -80) return true;
+  if (lat > 8 && lat < 18 && lng > -92 && lng < -77) return true;
+  // Alaska
+  if (lat > 55 && lat < 71 && lng > -168 && lng < -140) return true;
+  // Greenland
+  if (lat > 60 && lat < 82 && lng > -55 && lng < -20) return true;
+  // South America
+  if (lat > -35 && lat < 10 && lng > -78 && lng < -35) return true;
+  if (lat > -55 && lat < -35 && lng > -73 && lng < -58) return true;
+  // Europe
+  if (lat > 40 && lat < 60 && lng > -10 && lng < 30) return true;
+  if (lat > 55 && lat < 71 && lng > 5 && lng < 60) return true;
+  // UK / Ireland
+  if (lat > 50 && lat < 59 && lng > -10 && lng < 2) return true;
+  // Africa
+  if (lat > -35 && lat < 15 && lng > -18 && lng < 42) return true;
+  if (lat > 5 && lat < 32 && lng > -17 && lng < 35) return true;
+  // Madagascar
+  if (lat > -26 && lat < -12 && lng > 43 && lng < 51) return true;
+  // Middle East / Arabia
+  if (lat > 12 && lat < 32 && lng > 33 && lng < 55) return true;
+  // Asia mainland
+  if (lat > 10 && lat < 55 && lng > 55 && lng < 140) return true;
+  if (lat > 40 && lat < 72 && lng > 30 && lng < 180) return true;
+  // India
+  if (lat > 8 && lat < 28 && lng > 70 && lng < 90) return true;
+  // SE Asia / Indonesia
+  if (lat > -10 && lat < 22 && lng > 95 && lng < 141) return true;
+  // Japan
+  if (lat > 30 && lat < 46 && lng > 130 && lng < 146) return true;
+  // Philippines
+  if (lat > 5 && lat < 19 && lng > 117 && lng < 127) return true;
+  // Australia
+  if (lat > -38 && lat < -12 && lng > 113 && lng < 154) return true;
+  // New Zealand
+  if (lat > -47 && lat < -34 && lng > 166 && lng < 179) return true;
+  return false;
+}
+
 function WorldMapSvg() {
-  // Lightweight stylized world silhouette. Decorative — markers carry the data.
+  const dots = useMemo(() => {
+    const cols = 110;
+    const rows = 55;
+    const out: Array<{ cx: number; cy: number }> = [];
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        const lng = (i / cols) * 360 - 180;
+        const lat = 90 - (j / rows) * 180;
+        // bias the southern bound up so Antarctica band is excluded
+        if (lat < -58) continue;
+        if (isLand(lng, lat)) {
+          out.push({
+            cx: ((lng + 180) / 360) * 1000,
+            cy: ((90 - lat) / 180) * 500,
+          });
+        }
+      }
+    }
+    return out;
+  }, []);
+
   return (
     <svg
       viewBox="0 0 1000 500"
-      className="absolute inset-0 h-full w-full opacity-25"
+      className="absolute inset-0 h-full w-full"
       preserveAspectRatio="none"
       aria-hidden
     >
       <defs>
-        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="0.5" />
+        <pattern id="heatmap-grid" width="50" height="50" patternUnits="userSpaceOnUse">
+          <path d="M 50 0 L 0 0 0 50" fill="none" stroke="currentColor" strokeWidth="0.4" />
         </pattern>
       </defs>
-      <rect width="1000" height="500" fill="url(#grid)" className="text-border" />
-      {/* Equator */}
-      <line x1="0" y1="250" x2="1000" y2="250" stroke="currentColor" strokeWidth="0.5" className="text-border" strokeDasharray="4 6" />
-      {/* Prime meridian */}
-      <line x1="500" y1="0" x2="500" y2="500" stroke="currentColor" strokeWidth="0.5" className="text-border" strokeDasharray="4 6" />
+      <rect width="1000" height="500" fill="url(#heatmap-grid)" className="text-border/50" />
+      <line x1="0" y1="250" x2="1000" y2="250" stroke="currentColor" strokeWidth="0.4" className="text-border/70" strokeDasharray="4 6" />
+      <line x1="500" y1="0" x2="500" y2="500" stroke="currentColor" strokeWidth="0.4" className="text-border/70" strokeDasharray="4 6" />
+      <g className="text-foreground/40">
+        {dots.map((d, i) => (
+          <circle key={i} cx={d.cx} cy={d.cy} r="2" fill="currentColor" />
+        ))}
+      </g>
     </svg>
   );
 }
