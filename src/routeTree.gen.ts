@@ -24,6 +24,7 @@ import { Route as StorylineIdRouteImport } from './routes/storyline.$id'
 import { Route as EventIdRouteImport } from './routes/event.$id'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiPublicCronRefreshRouteImport } from './routes/api/public/cron-refresh'
+import { Route as ApiPublicCronMarketsRouteImport } from './routes/api/public/cron-markets'
 import { Route as ApiPublicV1EventsRouteImport } from './routes/api/public/v1/events'
 
 const StorylinesRoute = StorylinesRouteImport.update({
@@ -101,6 +102,11 @@ const ApiPublicCronRefreshRoute = ApiPublicCronRefreshRouteImport.update({
   path: '/api/public/cron-refresh',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCronMarketsRoute = ApiPublicCronMarketsRouteImport.update({
+  id: '/api/public/cron-markets',
+  path: '/api/public/cron-markets',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicV1EventsRoute = ApiPublicV1EventsRouteImport.update({
   id: '/api/public/v1/events',
   path: '/api/public/v1/events',
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/event/$id': typeof EventIdRoute
   '/storyline/$id': typeof StorylineIdRoute
+  '/api/public/cron-markets': typeof ApiPublicCronMarketsRoute
   '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
   '/api/public/v1/events': typeof ApiPublicV1EventsRoute
 }
@@ -140,6 +147,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/event/$id': typeof EventIdRoute
   '/storyline/$id': typeof StorylineIdRoute
+  '/api/public/cron-markets': typeof ApiPublicCronMarketsRoute
   '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
   '/api/public/v1/events': typeof ApiPublicV1EventsRoute
 }
@@ -159,6 +167,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/event/$id': typeof EventIdRoute
   '/storyline/$id': typeof StorylineIdRoute
+  '/api/public/cron-markets': typeof ApiPublicCronMarketsRoute
   '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
   '/api/public/v1/events': typeof ApiPublicV1EventsRoute
 }
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/event/$id'
     | '/storyline/$id'
+    | '/api/public/cron-markets'
     | '/api/public/cron-refresh'
     | '/api/public/v1/events'
   fileRoutesByTo: FileRoutesByTo
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/event/$id'
     | '/storyline/$id'
+    | '/api/public/cron-markets'
     | '/api/public/cron-refresh'
     | '/api/public/v1/events'
   id:
@@ -215,6 +226,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/event/$id'
     | '/storyline/$id'
+    | '/api/public/cron-markets'
     | '/api/public/cron-refresh'
     | '/api/public/v1/events'
   fileRoutesById: FileRoutesById
@@ -234,6 +246,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   EventIdRoute: typeof EventIdRoute
   StorylineIdRoute: typeof StorylineIdRoute
+  ApiPublicCronMarketsRoute: typeof ApiPublicCronMarketsRoute
   ApiPublicCronRefreshRoute: typeof ApiPublicCronRefreshRoute
   ApiPublicV1EventsRoute: typeof ApiPublicV1EventsRoute
 }
@@ -345,6 +358,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronRefreshRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/cron-markets': {
+      id: '/api/public/cron-markets'
+      path: '/api/public/cron-markets'
+      fullPath: '/api/public/cron-markets'
+      preLoaderRoute: typeof ApiPublicCronMarketsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/v1/events': {
       id: '/api/public/v1/events'
       path: '/api/public/v1/events'
@@ -370,9 +390,20 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   EventIdRoute: EventIdRoute,
   StorylineIdRoute: StorylineIdRoute,
+  ApiPublicCronMarketsRoute: ApiPublicCronMarketsRoute,
   ApiPublicCronRefreshRoute: ApiPublicCronRefreshRoute,
   ApiPublicV1EventsRoute: ApiPublicV1EventsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
