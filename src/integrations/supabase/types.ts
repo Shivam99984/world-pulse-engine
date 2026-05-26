@@ -219,6 +219,36 @@ export type Database = {
         }
         Relationships: []
       }
+      market_quotes: {
+        Row: {
+          category: string
+          change_24h: number
+          history: Json
+          label: string
+          price: number
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          change_24h?: number
+          history?: Json
+          label: string
+          price?: number
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          change_24h?: number
+          history?: Json
+          label?: string
+          price?: number
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
