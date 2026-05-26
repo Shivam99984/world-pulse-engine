@@ -14,6 +14,8 @@ import { Magnet } from "@/components/rb/Magnet";
 import { TiltedCard } from "@/components/rb/TiltedCard";
 import { ScrollReveal } from "@/components/rb/ScrollReveal";
 import { Beams } from "@/components/rb/Beams";
+import { LiveTicker } from "@/components/live/LiveTicker";
+import { LiveStatsBar } from "@/components/live/LiveStatsBar";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -143,7 +145,13 @@ function Index() {
           </div>
         </div>
 
+        <LiveTicker />
         <NewsTicker />
+      </section>
+
+      {/* LIVE STATS */}
+      <section className="mx-auto -mt-2 max-w-7xl px-4 pt-10 sm:px-6">
+        <LiveStatsBar />
       </section>
 
       {/* FEATURES */}
