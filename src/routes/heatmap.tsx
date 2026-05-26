@@ -111,99 +111,105 @@ function HeatmapPage() {
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card/70 shadow-soft backdrop-blur">
+      <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-card/70 shadow-soft backdrop-blur">
         <div className="flex items-center justify-between border-b border-border/60 px-4 py-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <Radio className="h-3.5 w-3.5 text-primary" /> {countries.length} countries · {total} signals
           </span>
           <Legend />
         </div>
-        <div className="relative aspect-[2/1] w-full bg-[radial-gradient(ellipse_at_center,hsl(var(--background))_0%,transparent_70%)]">
-          <WorldMapSvg />
-          {countries.map((c) => {
-            const { x, y } = project(c.lat, c.lng);
-            const tier = riskTier(c.max_risk);
-            const size = 8 + (c.max_risk / 100) * 28;
-            const pulse = pulseId === c.country_code;
-            return (
-              <div
-                key={c.country_code}
-                className="group absolute -translate-x-1/2 -translate-y-1/2"
-                style={{ left: `${x * 100}%`, top: `${y * 100}%` }}
-              >
-                <span
-                  className={cn(
-                    "absolute inset-0 rounded-full",
-                    pulse && "animate-ping",
-                  )}
-                  style={{
-                    width: size,
-                    height: size,
-                    transform: "translate(-50%, -50%)",
-                    background: tier.glow,
-                    left: "50%",
-                    top: "50%",
-                  }}
-                />
-                <span
-                  className="block rounded-full ring-2 ring-background/80 transition-transform group-hover:scale-125"
-                  style={{
-                    width: size,
-                    height: size,
-                    background: tier.color,
-                    boxShadow: `0 0 ${size}px ${tier.glow}`,
-                  }}
-                />
-                <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[11px] opacity-0 shadow-elegant transition-opacity group-hover:opacity-100">
-                  <div className="font-semibold">{c.country_name}</div>
-                  <div className="text-muted-foreground">
-                    {tier.label} · risk {c.max_risk} · {c.events} signals
+        <div className="grid gap-0 lg:grid-cols-[1fr_320px]">
+          <div className="relative aspect-[2/1] w-full overflow-hidden bg-[radial-gradient(ellipse_at_center,hsl(var(--background))_0%,transparent_70%)]">
+            <WorldMapSvg />
+            {countries.map((c) => {
+              const { x, y } = project(c.lat, c.lng);
+              const tier = riskTier(c.max_risk);
+              const size = 8 + (c.max_risk / 100) * 28;
+              const pulse = pulseId === c.country_code;
+              return (
+                <div
+                  key={c.country_code}
+                  className="group absolute -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${x * 100}%`, top: `${y * 100}%` }}
+                >
+                  <span
+                    className={cn("absolute inset-0 rounded-full", pulse && "animate-ping")}
+                    style={{
+                      width: size,
+                      height: size,
+                      transform: "translate(-50%, -50%)",
+                      background: tier.glow,
+                      left: "50%",
+                      top: "50%",
+                    }}
+                  />
+                  <span
+                    className="block rounded-full ring-2 ring-background/80 transition-transform group-hover:scale-125"
+                    style={{
+                      width: size,
+                      height: size,
+                      background: tier.color,
+                      boxShadow: `0 0 ${size}px ${tier.glow}`,
+                    }}
+                  />
+                  <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[11px] opacity-0 shadow-elegant transition-opacity group-hover:opacity-100">
+                    <div className="font-semibold">{c.country_name}</div>
+                    <div className="text-muted-foreground">
+                      {tier.label} · risk {c.max_risk} · {c.events} signals
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {top.map((c) => {
-          const tier = riskTier(c.max_risk);
-          return (
-            <Link
-              key={c.country_code}
-              to="/event/$id"
-              params={{ id: c.last_event_id }}
-              className="group rounded-xl border border-border bg-card p-4 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elegant"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ background: tier.color, boxShadow: `0 0 10px ${tier.glow}` }}
-                  />
-                  <div className="text-sm font-semibold">{c.country_name}</div>
-                </div>
-                <span className="font-mono text-xs text-muted-foreground">
-                  <ScrambleText text={String(c.max_risk)} duration={600} />
-                </span>
-              </div>
-              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.last_narrative}</p>
-              <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <Activity className="h-3 w-3" /> {c.events} signals
-                </span>
-                <span style={{ color: tier.color }}>{tier.label}</span>
-              </div>
-            </Link>
-          );
-        })}
-        {top.length === 0 && (
-          <div className="col-span-full rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            No country impacts yet. Once events are analyzed, risk pulses will appear here in real time.
+              );
+            })}
           </div>
-        )}
-      </div>
+
+          <aside className="border-t border-border/60 lg:border-l lg:border-t-0">
+            <div className="px-4 py-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+              Top risk countries
+            </div>
+            <div className="max-h-[480px] divide-y divide-border/50 overflow-y-auto">
+              {top.map((c) => {
+                const tier = riskTier(c.max_risk);
+                return (
+                  <Link
+                    key={c.country_code}
+                    to="/event/$id"
+                    params={{ id: c.last_event_id }}
+                    className="group block px-4 py-3 transition-colors hover:bg-accent/40"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ background: tier.color, boxShadow: `0 0 10px ${tier.glow}` }}
+                        />
+                        <div className="text-sm font-semibold">{c.country_name}</div>
+                      </div>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        <ScrambleText text={String(c.max_risk)} duration={600} />
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      {c.last_narrative}
+                    </p>
+                    <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <Activity className="h-3 w-3" /> {c.events} signals
+                      </span>
+                      <span style={{ color: tier.color }}>{tier.label}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+              {top.length === 0 && (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  No country impacts yet. Risk pulses will appear here in real time.
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      </section>
     </div>
   );
 }
