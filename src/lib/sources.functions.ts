@@ -1,14 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateText, Output } from "ai";
+import { generateObject } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider, DEFAULT_MODEL } from "./ai-gateway.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const FEEDS = [
-  { url: "https://feeds.reuters.com/reuters/topNews", source: "Reuters" },
   { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "BBC" },
   { url: "https://www.aljazeera.com/xml/rss/all.xml", source: "Al Jazeera" },
-  { url: "https://feeds.npr.org/1004/rss.xml", source: "NPR World" },
+  { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC Business" },
+  { url: "https://feeds.bbci.co.uk/news/technology/rss.xml", source: "BBC Tech" },
+  { url: "https://moxie.foxnews.com/google-publisher/world.xml", source: "Fox World" },
+  { url: "https://rss.dw.com/rdf/rss-en-world", source: "Deutsche Welle" },
+  { url: "https://www.theguardian.com/world/rss", source: "The Guardian" },
 ];
 
 const Enriched = z.object({
@@ -86,13 +89,14 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     )
     .join("\n");
 
-  const { output } = await generateText({
+  const { object } = await generateObject({
     model: gateway(DEFAULT_MODEL),
-    output: Output.object({ schema: Enriched }),
+    schema: Enriched,
     system:
       "You are GeoPulse AI's enrichment engine. Take raw real-world headlines and convert each into a structured intelligence event with sentiment, risk score, confidence, affected countries (ISO names), industries, and sources. Use the original outlet in sources. Categories must be one of: Economy, AI, Crypto, Politics, Defense, Space, Startups, Technology, Sports, Climate, Commodities, Energy, Healthcare, Trade.",
     prompt: `Enrich these ${collected.length} real headlines into structured GeoPulse events. Mark items as breaking only if clearly time-sensitive.\n\n${headlinesText}`,
   });
+  const output = object;
 
   const rows = output.events.map((e) => ({
     headline: e.headline,
