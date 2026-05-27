@@ -14,25 +14,6 @@ const FEEDS = [
   { url: "https://www.theguardian.com/world/rss", source: "The Guardian" },
 ];
 
-const Enriched = z.object({
-  events: z
-    .array(
-      z.object({
-        headline: z.string(),
-        summary: z.string(),
-        category: z.string(),
-        sentiment: z.number().min(-1).max(1),
-        risk_score: z.number().min(0).max(100),
-        confidence: z.number().min(0).max(100),
-        countries: z.array(z.string()),
-        industries: z.array(z.string()),
-        sources: z.array(z.string()),
-        breaking: z.boolean(),
-      }),
-    )
-    .min(1)
-    .max(20),
-});
 
 function stripHtml(s: string) {
   return s
