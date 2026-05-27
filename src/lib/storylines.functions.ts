@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateText, Output } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider, DEFAULT_MODEL } from "./ai-gateway.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -10,21 +10,142 @@ function getGateway() {
   return createLovableAiGatewayProvider(key);
 }
 
-const StorylineSchema = z.object({
-  storylines: z
-    .array(
-      z.object({
-        title: z.string(),
-        thesis: z.string(),
-        tags: z.array(z.string()).min(1).max(6),
-        risk_score: z.number().min(0).max(100),
-        event_indices: z.array(z.number().int()).min(2).max(10),
-        rationales: z.array(z.string()).min(2).max(10),
-      }),
-    )
-    .min(2)
-    .max(6),
+const StorylineItemSchema = z.object({
+  title: z.string().min(3),
+  thesis: z.string().min(20),
+  tags: z.array(z.string()).min(1).max(6),
+  risk_score: z.number().min(0).max(100),
+  event_indices: z.array(z.number().int()).min(2).max(10),
+  rationales: z.array(z.string()).min(2).max(10),
 });
+
+type StorylineDraft = z.infer<typeof StorylineItemSchema>;
+
+type ClusterEvent = {
+  headline: string;
+  summary: string | null;
+  category: string | null;
+  countries: unknown;
+};
+
+function clamp(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
+function extractJSON(raw: string): unknown {
+  let cleaned = raw
+    .replace(/^```json\s*/im, "")
+    .replace(/^```\s*/im, "")
+    .replace(/```\s*$/im, "")
+    .trim();
+
+  if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+    const objStart = cleaned.indexOf("{");
+    const arrStart = cleaned.indexOf("[");
+    const isArray = arrStart !== -1 && (objStart === -1 || arrStart < objStart);
+    const start = isArray ? arrStart : objStart;
+    const end = isArray ? cleaned.lastIndexOf("]") : cleaned.lastIndexOf("}");
+    if (start === -1 || end <= start) throw new Error("No JSON object found");
+    cleaned = cleaned.slice(start, end + 1);
+  }
+
+  return JSON.parse(cleaned);
+}
+
+function asStringArray(value: unknown, fallback: string[], max = 6) {
+  if (!Array.isArray(value)) return fallback;
+  const items = value
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean)
+    .slice(0, max);
+  return items.length ? items : fallback;
+}
+
+function normalizeIndices(value: unknown, eventCount: number) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item >= 0 && item < eventCount),
+    ),
+  ).slice(0, 10);
+}
+
+function parseStorylineDrafts(raw: string, eventCount: number): StorylineDraft[] {
+  try {
+    const parsed = extractJSON(raw);
+    const payload = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+    const candidates = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(payload.storylines)
+        ? payload.storylines
+        : [];
+
+    return candidates
+      .map((candidate) => {
+        const row = candidate && typeof candidate === "object" ? (candidate as Record<string, unknown>) : {};
+        const event_indices = normalizeIndices(row.event_indices, eventCount);
+        const rationales = asStringArray(
+          row.rationales,
+          event_indices.map(() => "Related through geography, sector exposure, or timing."),
+          10,
+        ).slice(0, event_indices.length);
+        const draft = {
+          title: String(row.title ?? "Emerging global signal cluster").trim().slice(0, 140),
+          thesis: String(
+            row.thesis ??
+              "Recent events show connected geopolitical, economic, or security signals worth monitoring together.",
+          )
+            .trim()
+            .slice(0, 700),
+          tags: asStringArray(row.tags, ["global", "risk"], 6),
+          risk_score: Math.round(clamp(Number(row.risk_score ?? 55), 0, 100)),
+          event_indices,
+          rationales: rationales.length >= 2 ? rationales : event_indices.map(() => "Related signal."),
+        };
+        const result = StorylineItemSchema.safeParse(draft);
+        return result.success ? result.data : null;
+      })
+      .filter((item): item is StorylineDraft => item !== null)
+      .slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
+function fallbackStorylines(events: ClusterEvent[]): StorylineDraft[] {
+  const midpoint = Math.max(2, Math.ceil(events.length / 2));
+  const first = events.slice(0, Math.min(midpoint, 6)).map((_, index) => index);
+  const secondStart = Math.max(0, midpoint - 1);
+  const second = events.slice(secondStart, Math.min(events.length, secondStart + 6)).map((_, index) => index + secondStart);
+
+  return [
+    {
+      title: "Front-line global risk signals",
+      thesis:
+        "Recent high-salience events share overlapping geopolitical and economic risk channels. The cluster should be monitored for rapid shifts in country exposure, sector pressure, and headline velocity.",
+      tags: ["global", "risk", "policy"],
+      risk_score: 62,
+      event_indices: first.length >= 2 ? first : [0, 1],
+      rationales: (first.length >= 2 ? first : [0, 1]).map(
+        () => "Included because it is among the newest signals in the live feed.",
+      ),
+    },
+    {
+      title: "Secondary spillover watchlist",
+      thesis:
+        "A second set of live signals points to broader market, policy, and regional spillovers. These events may become more important if they begin reinforcing the front-line risk cluster.",
+      tags: ["markets", "spillover", "watchlist"],
+      risk_score: 48,
+      event_indices: second.length >= 2 ? second : [1, 2],
+      rationales: (second.length >= 2 ? second : [1, 2]).map(
+        () => "Included because it may amplify or transmit related risk into adjacent regions or sectors.",
+      ),
+    },
+  ];
+}
 
 export const listStorylines = createServerFn({ method: "GET" }).handler(async () => {
   const { data, error } = await supabaseAdmin
