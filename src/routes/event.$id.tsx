@@ -36,6 +36,18 @@ function EventPage() {
     queryFn: () => accuracyFn({ data: { id } }),
   });
 
+  const impacts = data?.impacts ?? [];
+  const predictions = data?.predictions ?? [];
+
+  const autoFired = useRef(false);
+  useEffect(() => {
+    if (!autoFired.current && data?.event && impacts.length === 0 && !running) {
+      autoFired.current = true;
+      void onAnalyze();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
   if (isLoading) {
     return (
       <div className="mx-auto grid max-w-5xl place-items-center px-4 py-20">
@@ -45,17 +57,6 @@ function EventPage() {
   }
   if (!data?.event) throw notFound();
   const event = data.event;
-  const impacts = data.impacts;
-  const predictions = data.predictions;
-
-  const autoFired = useRef(false);
-  useEffect(() => {
-    if (!autoFired.current && data && data.event && impacts.length === 0 && !running) {
-      autoFired.current = true;
-      void onAnalyze();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
 
   async function onAnalyze() {
     setRunning(true);

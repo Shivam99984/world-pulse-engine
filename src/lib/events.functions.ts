@@ -196,8 +196,8 @@ export const analyzeEvent = createServerFn({ method: "POST" })
       model: gateway(DEFAULT_MODEL),
       output: Output.object({ schema: ImpactSchema }),
       system:
-        "You are GeoPulse AI's Impact Engine. Given a global event, analyze cascading effects across countries, economies, and markets. Use realistic ISO-3166 alpha-2 country codes and accurate capital-city coordinates. Be specific and concrete.",
-      prompt: `Analyze this event:\nHEADLINE: ${event.headline}\nSUMMARY: ${event.summary}\nCATEGORY: ${event.category}\nCOUNTRIES: ${(event.countries as string[]).join(", ")}\nINDUSTRIES: ${(event.industries as string[]).join(", ")}\n\nReturn 5-8 affected countries with impact narratives, and 4-6 forward predictions across horizons (24h, 1 week, 1 month, 3 months).`,
+        "You are GeoPulse AI's Impact Engine. Return JSON. Given a global event, analyze cascading effects across countries, economies, and markets. Use realistic ISO-3166 alpha-2 country codes and accurate capital-city coordinates. Be specific and concrete.",
+      prompt: `Analyze this event and return JSON:\nHEADLINE: ${event.headline}\nSUMMARY: ${event.summary}\nCATEGORY: ${event.category}\nCOUNTRIES: ${(event.countries as string[]).join(", ")}\nINDUSTRIES: ${(event.industries as string[]).join(", ")}\n\nReturn 5-8 affected countries with impact narratives, and 4-6 forward predictions across horizons (24h, 1 week, 1 month, 3 months).`,
     });
 
     await supabaseAdmin.from("event_impacts").insert(
@@ -310,8 +310,8 @@ export const generateBrief = createServerFn({ method: "POST" })
       model: gateway(DEFAULT_MODEL),
       output: Output.object({ schema: BriefSchema }),
       system:
-        "You are GeoPulse AI, an executive intelligence briefer. Produce a sharp, specific daily brief tailored to the user's interests. Be quantitative, name countries and companies, avoid hedging.",
-      prompt: `User interests: ${topics.length ? topics.join(", ") : "(all topics)"}\n\nRecent events:\n${ctx || "(none)"}\n\nWrite a personalized daily intelligence brief.`,
+        "You are GeoPulse AI, an executive intelligence briefer. Return JSON. Produce a sharp, specific daily brief tailored to the user's interests. Be quantitative, name countries and companies, avoid hedging.",
+      prompt: `Return JSON. User interests: ${topics.length ? topics.join(", ") : "(all topics)"}\n\nRecent events:\n${ctx || "(none)"}\n\nWrite a personalized daily intelligence brief.`,
     });
     return { brief: output, generated_at: new Date().toISOString() };
   });
