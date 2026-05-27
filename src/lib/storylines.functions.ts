@@ -86,8 +86,8 @@ export const clusterStorylines = createServerFn({ method: "POST" }).handler(asyn
     model: gateway(DEFAULT_MODEL),
     output: Output.object({ schema: StorylineSchema }),
     system:
-      "You are GeoPulse AI's Storyline Engine. Cluster related events into coherent narratives (a 'storyline'). Each storyline should have a sharp title, a 2-3 sentence thesis, and reference 2-10 of the provided event indices. Rationales array must align 1:1 with event_indices and explain why each event belongs.",
-    prompt: `Cluster these recent events into 2-5 storylines.\n\nEVENTS:\n${numbered}`,
+      "You are GeoPulse AI's Storyline Engine. Return JSON. Cluster related events into coherent narratives (a 'storyline'). Each storyline should have a sharp title, a 2-3 sentence thesis, and reference 2-10 of the provided event indices. Rationales array must align 1:1 with event_indices and explain why each event belongs.",
+    prompt: `Return JSON. Cluster these recent events into 2-5 storylines.\n\nEVENTS:\n${numbered}`,
   });
 
   // Clear old storylines to avoid duplicates piling up
