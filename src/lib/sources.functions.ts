@@ -93,8 +93,8 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     model: gateway(DEFAULT_MODEL),
     schema: Enriched,
     system:
-      "You are GeoPulse AI's enrichment engine. Take raw real-world headlines and convert each into a structured intelligence event with sentiment, risk score, confidence, affected countries (ISO names), industries, and sources. Use the original outlet in sources. Categories must be one of: Economy, AI, Crypto, Politics, Defense, Space, Startups, Technology, Sports, Climate, Commodities, Energy, Healthcare, Trade.",
-    prompt: `Enrich these ${collected.length} real headlines into structured GeoPulse events. Mark items as breaking only if clearly time-sensitive.\n\n${headlinesText}`,
+      "You are GeoPulse AI's enrichment engine. Return JSON. Take raw real-world headlines and convert each into a structured intelligence event with sentiment, risk score, confidence, affected countries (ISO names), industries, and sources. Use the original outlet in sources. Categories must be one of: Economy, AI, Crypto, Politics, Defense, Space, Startups, Technology, Sports, Climate, Commodities, Energy, Healthcare, Trade.",
+    prompt: `Return JSON. Enrich these ${collected.length} real headlines into structured GeoPulse events. Mark items as breaking only if clearly time-sensitive.\n\n${headlinesText}`,
   });
   const output = object;
 
