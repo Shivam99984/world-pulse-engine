@@ -125,9 +125,9 @@ export const generateEvents = createServerFn({ method: "POST" }).handler(async (
     model: gateway(DEFAULT_MODEL),
     output: Output.object({ schema: BatchSchema }),
     system:
-      "You are GeoPulse AI, a real-time global intelligence engine. Generate diverse, plausible breaking events spanning geopolitics, markets, technology, energy, climate, defense, AI, and crypto. Be specific and grounded; avoid fictional country names. Sentiment is -1 (very negative) to 1 (very positive). Risk score 0-100. Confidence 0-100. Sources are realistic outlets (Reuters, Bloomberg, FT, Al Jazeera, Economic Times, Bloomberg, TechCrunch, X, Reddit).",
+      "You are GeoPulse AI, a real-time global intelligence engine. Return JSON. Generate diverse, plausible breaking events spanning geopolitics, markets, technology, energy, climate, defense, AI, and crypto. Be specific and grounded; avoid fictional country names. Sentiment is -1 (very negative) to 1 (very positive). Risk score 0-100. Confidence 0-100. Sources are realistic outlets (Reuters, Bloomberg, FT, Al Jazeera, Economic Times, Bloomberg, TechCrunch, X, Reddit).",
     prompt:
-      "Generate 10 fresh global intelligence events for the next news cycle. Mix breaking and developing. Categories must be one of: Economy, AI, Crypto, Politics, Defense, Space, Startups, Technology, Sports, Climate, Commodities, Energy, Healthcare, Trade.",
+      "Return JSON. Generate 10 fresh global intelligence events for the next news cycle. Mix breaking and developing. Categories must be one of: Economy, AI, Crypto, Politics, Defense, Space, Startups, Technology, Sports, Climate, Commodities, Energy, Healthcare, Trade.",
   });
 
   const rows = output.events.map((e) => ({
