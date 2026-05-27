@@ -5,10 +5,13 @@ import { createLovableAiGatewayProvider, DEFAULT_MODEL } from "./ai-gateway.serv
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const FEEDS = [
-  { url: "https://feeds.reuters.com/reuters/topNews", source: "Reuters" },
   { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "BBC" },
   { url: "https://www.aljazeera.com/xml/rss/all.xml", source: "Al Jazeera" },
-  { url: "https://feeds.npr.org/1004/rss.xml", source: "NPR World" },
+  { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC Business" },
+  { url: "https://feeds.bbci.co.uk/news/technology/rss.xml", source: "BBC Tech" },
+  { url: "https://moxie.foxnews.com/google-publisher/world.xml", source: "Fox World" },
+  { url: "https://rss.dw.com/rdf/rss-en-world", source: "Deutsche Welle" },
+  { url: "https://www.theguardian.com/world/rss", source: "The Guardian" },
 ];
 
 const Enriched = z.object({
