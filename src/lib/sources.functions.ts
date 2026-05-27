@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateObject } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider, DEFAULT_MODEL } from "./ai-gateway.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -14,25 +14,6 @@ const FEEDS = [
   { url: "https://www.theguardian.com/world/rss", source: "The Guardian" },
 ];
 
-const Enriched = z.object({
-  events: z
-    .array(
-      z.object({
-        headline: z.string(),
-        summary: z.string(),
-        category: z.string(),
-        sentiment: z.number().min(-1).max(1),
-        risk_score: z.number().min(0).max(100),
-        confidence: z.number().min(0).max(100),
-        countries: z.array(z.string()),
-        industries: z.array(z.string()),
-        sources: z.array(z.string()),
-        breaking: z.boolean(),
-      }),
-    )
-    .min(1)
-    .max(20),
-});
 
 function stripHtml(s: string) {
   return s
@@ -89,27 +70,59 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     )
     .join("\n");
 
-  const { object } = await generateObject({
+  const { text } = await generateText({
     model: gateway(DEFAULT_MODEL),
-    schema: Enriched,
     system:
-      "You are GeoPulse AI's enrichment engine. Return JSON. Take raw real-world headlines and convert each into a structured intelligence event with sentiment, risk score, confidence, affected countries (ISO names), industries, and sources. Use the original outlet in sources. Categories must be one of: Economy, AI, Crypto, Politics, Defense, Space, Startups, Technology, Sports, Climate, Commodities, Energy, Healthcare, Trade.",
-    prompt: `Return JSON. Enrich these ${collected.length} real headlines into structured GeoPulse events. Mark items as breaking only if clearly time-sensitive.\n\n${headlinesText}`,
+      'You are GeoPulse AI\'s enrichment engine. Respond ONLY with raw JSON (no markdown fences) of shape: {"events":[{"headline":string,"summary":string,"category":string,"sentiment":number(-1..1),"risk_score":number(0..100),"confidence":number(0..100),"countries":string[],"industries":string[],"sources":string[],"breaking":boolean}]}. Categories must be one of: Economy, AI, Crypto, Politics, Defense, Space, Startups, Technology, Sports, Climate, Commodities, Energy, Healthcare, Trade.',
+    prompt: `Enrich these ${collected.length} real headlines into GeoPulse JSON events. Use the original outlet in sources. Mark breaking only if clearly time-sensitive.\n\n${headlinesText}`,
   });
-  const output = object;
 
-  const rows = output.events.map((e) => ({
-    headline: e.headline,
-    summary: e.summary,
-    category: e.category,
-    sentiment: e.sentiment,
-    risk_score: Math.round(e.risk_score),
-    confidence: Math.round(e.confidence),
-    countries: e.countries,
-    industries: e.industries,
-    sources: e.sources,
-    breaking: e.breaking,
-  }));
+  const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+  const jsonStart = cleaned.indexOf("{");
+  const jsonEnd = cleaned.lastIndexOf("}");
+  const payload = jsonStart >= 0 ? cleaned.slice(jsonStart, jsonEnd + 1) : cleaned;
+
+  let parsed: { events?: unknown[] };
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    throw new Error("AI returned non-JSON output");
+  }
+
+  const Item = z.object({
+    headline: z.string().min(1),
+    summary: z.string().min(1),
+    category: z.string().min(1),
+    sentiment: z.coerce.number(),
+    risk_score: z.coerce.number(),
+    confidence: z.coerce.number(),
+    countries: z.array(z.string()).default([]),
+    industries: z.array(z.string()).default([]),
+    sources: z.array(z.string()).default([]),
+    breaking: z.coerce.boolean().default(false),
+  });
+
+  const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+  const rows = (parsed.events ?? [])
+    .map((raw) => {
+      const r = Item.safeParse(raw);
+      return r.success ? r.data : null;
+    })
+    .filter((e): e is z.infer<typeof Item> => e !== null)
+    .map((e) => ({
+      headline: e.headline,
+      summary: e.summary,
+      category: e.category,
+      sentiment: clamp(e.sentiment, -1, 1),
+      risk_score: Math.round(clamp(e.risk_score, 0, 100)),
+      confidence: Math.round(clamp(e.confidence, 0, 100)),
+      countries: e.countries,
+      industries: e.industries,
+      sources: e.sources,
+      breaking: e.breaking,
+    }));
+
+  if (rows.length === 0) throw new Error("No valid events parsed");
 
   const { data, error } = await supabaseAdmin.from("events").insert(rows).select("id");
   if (error) throw new Error(error.message);
