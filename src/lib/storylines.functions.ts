@@ -203,19 +203,28 @@ export const clusterStorylines = createServerFn({ method: "POST" }).handler(asyn
     .join("\n");
 
   const gateway = getGateway();
-  const { output } = await generateText({
-    model: gateway(DEFAULT_MODEL),
-    output: Output.object({ schema: StorylineSchema }),
-    system:
-      "You are GeoPulse AI's Storyline Engine. Return JSON. Cluster related events into coherent narratives (a 'storyline'). Each storyline should have a sharp title, a 2-3 sentence thesis, and reference 2-10 of the provided event indices. Rationales array must align 1:1 with event_indices and explain why each event belongs.",
-    prompt: `Return JSON. Cluster these recent events into 2-5 storylines.\n\nEVENTS:\n${numbered}`,
-  });
+  let storylines: StorylineDraft[] = [];
+  try {
+    const { text } = await generateText({
+      model: gateway(DEFAULT_MODEL),
+      system:
+        "You are GeoPulse AI's Storyline Engine. Respond ONLY with raw JSON (no markdown fences). The JSON must be an object with a storylines array. Each storyline needs title, thesis, tags, risk_score, event_indices, and rationales.",
+      prompt: `Respond ONLY with raw JSON. Cluster these recent events into 2-5 storylines. Use zero-based event_indices from the list. Example shape: {"storylines":[{"title":"Policy shock cluster","thesis":"Two to three sentences connecting the signals.","tags":["policy","markets"],"risk_score":64,"event_indices":[0,2],"rationales":["Why event 0 belongs","Why event 2 belongs"]}]}\n\nEVENTS:\n${numbered}`,
+    });
+    storylines = parseStorylineDrafts(text, events.length);
+  } catch (error) {
+    console.warn("Storyline clustering AI failed, using fallback", error);
+  }
+
+  if (storylines.length < 2) {
+    storylines = fallbackStorylines(events);
+  }
 
   // Clear old storylines to avoid duplicates piling up
   await supabaseAdmin.from("storylines").delete().neq("id", "00000000-0000-0000-0000-000000000000");
 
   let inserted = 0;
-  for (const s of output.storylines) {
+  for (const s of storylines) {
     const { data: row } = await supabaseAdmin
       .from("storylines")
       .insert({
@@ -227,8 +236,14 @@ export const clusterStorylines = createServerFn({ method: "POST" }).handler(asyn
       .select("id")
       .single();
     if (!row) continue;
+    type StorylineLink = {
+      storyline_id: string;
+      event_id: string;
+      ordinal: number;
+      rationale: string | null;
+    };
     const links = s.event_indices
-      .map((idx, i) => {
+      .map((idx: number, i: number): StorylineLink | null => {
         const e = events[idx];
         if (!e) return null;
         return {
@@ -238,7 +253,7 @@ export const clusterStorylines = createServerFn({ method: "POST" }).handler(asyn
           rationale: s.rationales[i] ?? null,
         };
       })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
+      .filter((x): x is StorylineLink => x !== null);
     if (links.length) await supabaseAdmin.from("storyline_events").insert(links);
     inserted++;
   }
