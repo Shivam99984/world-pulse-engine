@@ -62,6 +62,10 @@ function asStringArray(value: unknown, fallback: string[], max = 6) {
   return items.length ? items : fallback;
 }
 
+function formatCountries(value: unknown) {
+  return asStringArray(value, ["global"], 8).join(", ");
+}
+
 function normalizeIndices(value: unknown, eventCount: number) {
   if (!Array.isArray(value)) return [];
   return Array.from(
@@ -198,7 +202,7 @@ export const clusterStorylines = createServerFn({ method: "POST" }).handler(asyn
   const numbered = events
     .map(
       (e, i) =>
-        `${i}. [${e.category}] ${e.headline} — ${e.summary} (${(e.countries as string[]).join(", ")})`,
+        `${i}. [${e.category ?? "global"}] ${e.headline} — ${e.summary ?? "No summary available."} (${formatCountries(e.countries)})`,
     )
     .join("\n");
 
