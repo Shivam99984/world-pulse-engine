@@ -168,5 +168,3 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
   if (error) throw new Error(error.message);
   return { inserted: data?.length ?? 0, fetched: collected.length, ai_enriched: rows !== fallbackRows };
 });
-
-});
