@@ -249,16 +249,22 @@ export const analyzeEvent = createServerFn({ method: "POST" })
       .limit(1);
     if (existing && existing.length > 0) return { cached: true };
 
-    const gateway = getGateway();
-    const { text } = await generateText({
-      model: gateway(DEFAULT_MODEL),
-      system:
-        'You are GeoPulse AI\'s Impact Engine. Respond ONLY with raw JSON (no markdown fences) of shape: {"countries":[{"country_code":"US","country_name":"United States","lat":38.9072,"lng":-77.0369,"impact_score":70,"narrative":"..."}],"predictions":[{"horizon":"24h","prediction":"...","confidence":70}]}. Given a global event, analyze cascading effects across countries, economies, and markets. Use realistic ISO-3166 alpha-2 country codes and accurate capital-city coordinates. Be specific and concrete.',
-      prompt: `Analyze this event and return JSON:\nHEADLINE: ${event.headline}\nSUMMARY: ${event.summary}\nCATEGORY: ${event.category}\nCOUNTRIES: ${(event.countries as string[]).join(", ")}\nINDUSTRIES: ${(event.industries as string[]).join(", ")}\n\nReturn 5-8 affected countries with impact narratives, and 4-6 forward predictions across horizons (24h, 1 week, 1 month, 3 months).`,
-    });
+    let output: z.infer<typeof ImpactSchema>;
+    try {
+      const gateway = getGateway();
+      const { text } = await generateText({
+        model: gateway(DEFAULT_MODEL),
+        system:
+          'You are GeoPulse AI\'s Impact Engine. Respond ONLY with raw JSON (no markdown fences) of shape: {"countries":[{"country_code":"US","country_name":"United States","lat":38.9072,"lng":-77.0369,"impact_score":70,"narrative":"..."}],"predictions":[{"horizon":"24h","prediction":"...","confidence":70}]}. Given a global event, analyze cascading effects across countries, economies, and markets. Use realistic ISO-3166 alpha-2 country codes and accurate capital-city coordinates. Be specific and concrete.',
+        prompt: `Analyze this event and return JSON:\nHEADLINE: ${event.headline}\nSUMMARY: ${event.summary}\nCATEGORY: ${event.category}\nCOUNTRIES: ${(event.countries as string[]).join(", ")}\nINDUSTRIES: ${(event.industries as string[]).join(", ")}\n\nReturn 5-8 affected countries with impact narratives, and 4-6 forward predictions across horizons (24h, 1 week, 1 month, 3 months).`,
+      });
 
-    const parsed = ImpactSchema.safeParse(extractJSON(text));
-    const output = parsed.success ? parsed.data : fallbackImpact(event);
+      const parsed = ImpactSchema.safeParse(extractJSON(text));
+      output = parsed.success ? parsed.data : fallbackImpact(event);
+    } catch (error) {
+      console.warn("Event analysis AI unavailable, using heuristic fallback:", error);
+      output = fallbackImpact(event);
+    }
 
     await supabaseAdmin.from("event_impacts").insert(
       output.countries.map((c) => ({
