@@ -21,8 +21,8 @@ const EventSchema = z.object({
 const BatchSchema = z.object({ events: z.array(EventSchema).min(6).max(14) });
 
 function getGateway() {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY missing");
+  const key = process.env.GROQ_API_KEY;
+  if (!key) throw new Error("GROQ_API_KEY missing");
   return createLovableAiGatewayProvider(key);
 }
 

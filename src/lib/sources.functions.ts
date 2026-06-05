@@ -116,7 +116,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
 
   // Try AI enrichment, but degrade gracefully if the gateway is out of credits / rate-limited.
   let rows: typeof fallbackRows = [];
-  const key = process.env.LOVABLE_API_KEY;
+  const key = process.env.GROQ_API_KEY;
   if (key) {
     try {
       const gateway = createLovableAiGatewayProvider(key);
