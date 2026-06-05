@@ -1,13 +1,18 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-export const createLovableAiGatewayProvider = (lovableApiKey: string) =>
+// Groq free tier: ~30 req/min, 14,400 req/day (no credit card required).
+// https://console.groq.com — set GROQ_API_KEY as a project secret.
+export const createGroqProvider = (apiKey: string) =>
   createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
+    name: "groq",
+    baseURL: "https://api.groq.com/openai/v1",
     headers: {
-      "Lovable-API-Key": lovableApiKey,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+      Authorization: `Bearer ${apiKey}`,
     },
   });
 
-export const DEFAULT_MODEL = "openai/gpt-5-mini";
+// Fast, capable free-tier model. Swap to "llama-3.1-8b-instant" for higher throughput.
+export const DEFAULT_MODEL = "llama-3.3-70b-versatile";
+
+// Back-compat aliases (so existing imports keep working).
+export const createLovableAiGatewayProvider = createGroqProvider;
