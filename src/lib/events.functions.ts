@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateText, Output } from "ai";
+import { generateText, generateObject } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider, DEFAULT_MODEL } from "./ai-gateway.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -121,9 +121,9 @@ export const listCountryRisk = createServerFn({ method: "GET" }).handler(async (
 
 export const generateEvents = createServerFn({ method: "POST" }).handler(async () => {
   const gateway = getGateway();
-  const { output } = await generateText({
+  const { object: output } = await generateObject({
     model: gateway(DEFAULT_MODEL),
-    output: Output.object({ schema: BatchSchema }),
+    schema: BatchSchema,
     system:
       "You are GeoPulse AI, a real-time global intelligence engine. Return JSON. Generate diverse, plausible breaking events spanning geopolitics, markets, technology, energy, climate, defense, AI, and crypto. Be specific and grounded; avoid fictional country names. Sentiment is -1 (very negative) to 1 (very positive). Risk score 0-100. Confidence 0-100. Sources are realistic outlets (Reuters, Bloomberg, FT, Al Jazeera, Economic Times, Bloomberg, TechCrunch, X, Reddit).",
     prompt:
@@ -372,9 +372,9 @@ export const generateBrief = createServerFn({ method: "POST" })
       .join("\n");
 
     const gateway = getGateway();
-    const { output } = await generateText({
+    const { object: output } = await generateObject({
       model: gateway(DEFAULT_MODEL),
-      output: Output.object({ schema: BriefSchema }),
+      schema: BriefSchema,
       system:
         "You are GeoPulse AI, an executive intelligence briefer. Return JSON. Produce a sharp, specific daily brief tailored to the user's interests. Be quantitative, name countries and companies, avoid hedging.",
       prompt: `Return JSON. User interests: ${topics.length ? topics.join(", ") : "(all topics)"}\n\nRecent events:\n${ctx || "(none)"}\n\nWrite a personalized daily intelligence brief.`,
