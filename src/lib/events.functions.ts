@@ -121,9 +121,10 @@ export const listCountryRisk = createServerFn({ method: "GET" }).handler(async (
 
 export const generateEvents = createServerFn({ method: "POST" }).handler(async () => {
   const gateway = getGateway();
-  const { output } = await generateText({
+  const { object: output } = await generateObject({
     model: gateway(DEFAULT_MODEL),
-    output: Output.object({ schema: BatchSchema }),
+    schema: BatchSchema,
+    mode: "json",
     system:
       "You are GeoPulse AI, a real-time global intelligence engine. Return JSON. Generate diverse, plausible breaking events spanning geopolitics, markets, technology, energy, climate, defense, AI, and crypto. Be specific and grounded; avoid fictional country names. Sentiment is -1 (very negative) to 1 (very positive). Risk score 0-100. Confidence 0-100. Sources are realistic outlets (Reuters, Bloomberg, FT, Al Jazeera, Economic Times, Bloomberg, TechCrunch, X, Reddit).",
     prompt:
