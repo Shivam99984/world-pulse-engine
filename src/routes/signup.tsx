@@ -66,6 +66,10 @@ function SignupPage() {
         <Button variant="outline" className="mt-5 w-full" onClick={onGoogle}>
           Continue with Google
         </Button>
+        <Button variant="outline" className="mt-2 w-full bg-black text-white hover:bg-black/90 hover:text-white border-black" onClick={onApple}>
+          <AppleIcon />
+          Continue with Apple
+        </Button>
         <div className="my-4 flex items-center gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
           <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
         </div>
