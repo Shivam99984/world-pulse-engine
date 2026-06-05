@@ -5,8 +5,8 @@ import { createLovableAiGatewayProvider, DEFAULT_MODEL } from "./ai-gateway.serv
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 function getGateway() {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY missing");
+  const key = process.env.GROQ_API_KEY;
+  if (!key) throw new Error("GROQ_API_KEY missing");
   return createLovableAiGatewayProvider(key);
 }
 
