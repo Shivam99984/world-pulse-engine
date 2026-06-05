@@ -372,9 +372,9 @@ export const generateBrief = createServerFn({ method: "POST" })
       .join("\n");
 
     const gateway = getGateway();
-    const { output } = await generateText({
+    const { object: output } = await generateObject({
       model: gateway(DEFAULT_MODEL),
-      output: Output.object({ schema: BriefSchema }),
+      schema: BriefSchema,
       system:
         "You are GeoPulse AI, an executive intelligence briefer. Return JSON. Produce a sharp, specific daily brief tailored to the user's interests. Be quantitative, name countries and companies, avoid hedging.",
       prompt: `Return JSON. User interests: ${topics.length ? topics.join(", ") : "(all topics)"}\n\nRecent events:\n${ctx || "(none)"}\n\nWrite a personalized daily intelligence brief.`,
