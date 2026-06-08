@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { IntelCard, IntelCardSkeleton, type IntelEvent } from "@/components/intel-card";
-import { generateEvents, listEvents } from "@/lib/events.functions";
+import { generateEvents, listEventFacets, listEvents, listMyInteractions } from "@/lib/events.functions";
 import { ingestRealNews } from "@/lib/sources.functions";
 import { TOPICS } from "@/lib/topics";
 import { cn } from "@/lib/utils";
