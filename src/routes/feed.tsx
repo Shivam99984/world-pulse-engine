@@ -127,17 +127,55 @@ function FeedPage() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "events" },
-        () => setPending((n) => n + 1),
+        (payload) => {
+          const newEvent = payload.new as IntelEvent;
+          let prepended = false;
+          qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
+            if (!old?.events) return old;
+            if (old.events.some((e) => e.id === newEvent.id)) return old;
+            prepended = true;
+            return { ...old, events: [newEvent, ...old.events].slice(0, 120) };
+          });
+          if (prepended) {
+            setPending((n) => n + 1);
+            // refresh facets to include new countries/industries
+            qc.invalidateQueries({ queryKey: ["event-facets"] });
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "events" },
+        (payload) => {
+          const updated = payload.new as IntelEvent;
+          qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
+            if (!old?.events) return old;
+            return { ...old, events: old.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)) };
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "events" },
+        (payload) => {
+          const removedId = (payload.old as { id?: string }).id;
+          if (!removedId) return;
+          qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
+            if (!old?.events) return old;
+            return { ...old, events: old.events.filter((e) => e.id !== removedId) };
+          });
+        },
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [qc]);
 
   async function loadNew() {
     setPending(0);
     await qc.invalidateQueries({ queryKey: ["events"] });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function onGenerate() {
