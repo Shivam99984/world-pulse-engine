@@ -127,7 +127,19 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     for (const [re, cat] of CAT_RULES) if (re.test(s)) return cat;
     return "Politics";
   };
-  const fallbackRows = fresh.slice(0, 12).map((c) => {
+  type Row = {
+    headline: string;
+    summary: string;
+    category: string;
+    sentiment: number;
+    risk_score: number;
+    confidence: number;
+    countries: string[];
+    industries: string[];
+    sources: string[];
+    breaking: boolean;
+  };
+  const fallbackRows: Row[] = fresh.slice(0, 12).map((c) => {
     const text = `${c.title} ${c.description}`;
     const sentiment = scoreSentiment(text);
     return {
@@ -144,7 +156,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     };
   });
 
-  let rows: typeof fallbackRows = [];
+  let rows: Row[] = [];
   const key = process.env.GROQ_API_KEY;
   if (key) {
     try {
