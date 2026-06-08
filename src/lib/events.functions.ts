@@ -27,9 +27,17 @@ function getGateway() {
 }
 
 export const listEvents = createServerFn({ method: "GET" })
-  .inputValidator((input: { limit?: number; topics?: string[] } | undefined) => input ?? {})
+  .inputValidator(
+    (input: {
+      limit?: number;
+      topics?: string[];
+      query?: string;
+      countries?: string[];
+      industries?: string[];
+    } | undefined) => input ?? {},
+  )
   .handler(async ({ data }) => {
-    const limit = data.limit ?? 30;
+    const limit = Math.min(data.limit ?? 30, 100);
     let q = supabaseAdmin
       .from("events")
       .select("*")
@@ -38,9 +46,61 @@ export const listEvents = createServerFn({ method: "GET" })
     if (data.topics && data.topics.length > 0) {
       q = q.in("category", data.topics);
     }
+    if (data.countries && data.countries.length > 0) {
+      q = q.overlaps("countries", data.countries);
+    }
+    if (data.industries && data.industries.length > 0) {
+      q = q.overlaps("industries", data.industries);
+    }
+    const term = (data.query ?? "").trim();
+    if (term) {
+      // Escape PostgREST `or` filter separators
+      const esc = term.replace(/[,()]/g, " ").trim();
+      q = q.or(`headline.ilike.%${esc}%,summary.ilike.%${esc}%`);
+    }
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return { events: rows ?? [] };
+  });
+
+// Distinct country/industry facets aggregated across recent events.
+export const listEventFacets = createServerFn({ method: "GET" }).handler(async () => {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("events")
+    .select("countries,industries")
+    .gte("created_at", since)
+    .limit(1000);
+  if (error) throw new Error(error.message);
+  const countries = new Set<string>();
+  const industries = new Set<string>();
+  for (const r of data ?? []) {
+    for (const c of (r.countries as string[]) ?? []) if (c) countries.add(c);
+    for (const i of (r.industries as string[]) ?? []) if (i) industries.add(i);
+  }
+  return {
+    countries: Array.from(countries).sort(),
+    industries: Array.from(industries).sort(),
+  };
+});
+
+// Hydrate the current user's saved + voted state for a set of event ids.
+export const listMyInteractions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { eventIds: string[] }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    if (data.eventIds.length === 0) return { saved: [], votes: {} };
+    const [{ data: saved }, { data: votes }] = await Promise.all([
+      supabase.from("saved_events").select("event_id").in("event_id", data.eventIds),
+      supabase.from("votes").select("event_id,value").in("event_id", data.eventIds),
+    ]);
+    const voteMap: Record<string, number> = {};
+    for (const v of votes ?? []) voteMap[v.event_id as string] = v.value as number;
+    return {
+      saved: (saved ?? []).map((r) => r.event_id as string),
+      votes: voteMap,
+    };
   });
 
 export const getEvent = createServerFn({ method: "GET" })

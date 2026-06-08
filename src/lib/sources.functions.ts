@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateText } from "ai";
+import { generateObject } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider, DEFAULT_MODEL } from "./ai-gateway.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -13,7 +13,6 @@ const FEEDS = [
   { url: "https://rss.dw.com/rdf/rss-en-world", source: "Deutsche Welle" },
   { url: "https://www.theguardian.com/world/rss", source: "The Guardian" },
 ];
-
 
 function stripHtml(s: string) {
   return s
@@ -37,6 +36,26 @@ function parseRss(xml: string, max = 8): { title: string; description: string }[
   return items;
 }
 
+const EnrichedSchema = z.object({
+  events: z
+    .array(
+      z.object({
+        headline: z.string(),
+        summary: z.string(),
+        category: z.string(),
+        sentiment: z.number().min(-1).max(1),
+        risk_score: z.number().min(0).max(100),
+        confidence: z.number().min(0).max(100),
+        countries: z.array(z.string()),
+        industries: z.array(z.string()),
+        sources: z.array(z.string()),
+        breaking: z.boolean(),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+
 export const ingestRealNews = createServerFn({ method: "POST" }).handler(async () => {
   const collected: { title: string; description: string; source: string }[] = [];
   await Promise.all(
@@ -58,7 +77,31 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     throw new Error("No real-world headlines could be fetched right now.");
   }
 
-  // Heuristic fallback row (used when AI enrichment is unavailable, e.g. 402 credits)
+  // Dedupe within batch (case-insensitive headline)
+  const seen = new Set<string>();
+  const unique = collected.filter((c) => {
+    const k = c.title.toLowerCase().trim();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  // Dedupe against recent rows in the events table
+  const { data: recent } = await supabaseAdmin
+    .from("events")
+    .select("headline")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  const existing = new Set(
+    (recent ?? []).map((r) => (r.headline as string).toLowerCase().trim()),
+  );
+  const fresh = unique.filter((c) => !existing.has(c.title.toLowerCase().trim()));
+
+  if (fresh.length === 0) {
+    return { inserted: 0, fetched: collected.length, ai_enriched: false, deduped: true };
+  }
+
+  // Heuristic fallback (used when AI is unavailable)
   const NEG = ["war", "attack", "crash", "ban", "sanction", "killed", "dies", "strike", "loss", "decline", "risk", "crisis"];
   const POS = ["deal", "growth", "record", "win", "boost", "approve", "agreement", "rally", "gain"];
   const CAT_RULES: Array<[RegExp, string]> = [
@@ -96,8 +139,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     sources: string[];
     breaking: boolean;
   };
-  const fallbackRows: Row[] = collected.slice(0, 12).map((c) => {
-
+  const fallbackRows: Row[] = fresh.slice(0, 12).map((c) => {
     const text = `${c.title} ${c.description}`;
     const sentiment = scoreSentiment(text);
     return {
@@ -114,70 +156,51 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     };
   });
 
-  // Try AI enrichment, but degrade gracefully if the gateway is out of credits / rate-limited.
-  let rows: typeof fallbackRows = [];
+  let rows: Row[] = [];
   const key = process.env.GROQ_API_KEY;
   if (key) {
     try {
       const gateway = createLovableAiGatewayProvider(key);
-      const headlinesText = collected
+      const headlinesText = fresh
         .slice(0, 24)
         .map((c, i) => `${i + 1}. [${c.source}] ${c.title}\n   ${c.description.slice(0, 280)}`)
         .join("\n");
 
-      const { text } = await generateText({
+      const { object: output } = await generateObject({
         model: gateway(DEFAULT_MODEL),
+        schema: EnrichedSchema,
         system:
-          'You are GeoPulse AI\'s enrichment engine. Respond ONLY with raw JSON (no markdown fences) of shape: {"events":[{"headline":string,"summary":string,"category":string,"sentiment":number(-1..1),"risk_score":number(0..100),"confidence":number(0..100),"countries":string[],"industries":string[],"sources":string[],"breaking":boolean}]}. Categories must be one of: Economy, AI, Crypto, Politics, Defense, Space, Startups, Technology, Sports, Climate, Commodities, Energy, Healthcare, Trade.',
-        prompt: `Enrich these ${collected.length} real headlines into GeoPulse JSON events. Use the original outlet in sources. Mark breaking only if clearly time-sensitive.\n\n${headlinesText}`,
+          "You are GeoPulse AI's enrichment engine. Return JSON. Categories must be one of: Economy, AI, Crypto, Politics, Defense, Space, Startups, Technology, Sports, Climate, Commodities, Energy, Healthcare, Trade. Use realistic country and industry names. Mark breaking only if clearly time-sensitive.",
+        prompt: `Enrich these ${fresh.length} real headlines into structured GeoPulse events. Use the original outlet as the source. Preserve the original headline.\n\n${headlinesText}`,
       });
 
-      const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
-      const jsonStart = cleaned.indexOf("{");
-      const jsonEnd = cleaned.lastIndexOf("}");
-      const payload = jsonStart >= 0 ? cleaned.slice(jsonStart, jsonEnd + 1) : cleaned;
-      const parsed = JSON.parse(payload) as { events?: unknown[] };
-
-      const Item = z.object({
-        headline: z.string().min(1),
-        summary: z.string().min(1),
-        category: z.string().min(1),
-        sentiment: z.coerce.number(),
-        risk_score: z.coerce.number(),
-        confidence: z.coerce.number(),
-        countries: z.array(z.string()).default([]),
-        industries: z.array(z.string()).default([]),
-        sources: z.array(z.string()).default([]),
-        breaking: z.coerce.boolean().default(false),
-      });
-      const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
-      rows = (parsed.events ?? [])
-        .map((raw) => {
-          const r = Item.safeParse(raw);
-          return r.success ? r.data : null;
-        })
-        .filter((e): e is z.infer<typeof Item> => e !== null)
-        .map((e) => ({
-          headline: e.headline,
-          summary: e.summary,
-          category: e.category,
-          sentiment: clamp(e.sentiment, -1, 1),
-          risk_score: Math.round(clamp(e.risk_score, 0, 100)),
-          confidence: Math.round(clamp(e.confidence, 0, 100)),
-          countries: e.countries,
-          industries: e.industries,
-          sources: e.sources,
-          breaking: e.breaking,
-        }));
+      rows = output.events.map((e) => ({
+        headline: e.headline,
+        summary: e.summary,
+        category: e.category,
+        sentiment: Math.max(-1, Math.min(1, e.sentiment)),
+        risk_score: Math.round(Math.max(0, Math.min(100, e.risk_score))),
+        confidence: Math.round(Math.max(0, Math.min(100, e.confidence))),
+        countries: e.countries,
+        industries: e.industries,
+        sources: e.sources,
+        breaking: e.breaking,
+      }));
     } catch (err) {
       console.warn("AI enrichment unavailable, using raw RSS fallback:", (err as Error).message);
     }
   }
 
-  if (rows.length === 0) rows = fallbackRows;
+  const aiEnriched = rows.length > 0;
+  if (!aiEnriched) rows = fallbackRows;
   if (rows.length === 0) throw new Error("No events to insert");
 
   const { data, error } = await supabaseAdmin.from("events").insert(rows).select("id");
   if (error) throw new Error(error.message);
-  return { inserted: data?.length ?? 0, fetched: collected.length, ai_enriched: rows !== fallbackRows };
+  return {
+    inserted: data?.length ?? 0,
+    fetched: collected.length,
+    ai_enriched: aiEnriched,
+    deduped: collected.length - fresh.length > 0,
+  };
 });

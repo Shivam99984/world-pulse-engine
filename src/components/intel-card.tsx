@@ -49,14 +49,24 @@ async function requireAuth(router: ReturnType<typeof useRouter>) {
   return true;
 }
 
-export function IntelCard({ event, index = 0 }: { event: IntelEvent; index?: number }) {
+export function IntelCard({
+  event,
+  index = 0,
+  initialSaved = false,
+  initialVote = 0,
+}: {
+  event: IntelEvent;
+  index?: number;
+  initialSaved?: boolean;
+  initialVote?: 1 | -1 | 0;
+}) {
   const risk = riskTone(event.risk_score);
   const positive = event.sentiment >= 0;
   const router = useRouter();
   const save = useServerFn(toggleSave);
   const vote = useServerFn(castVote);
-  const [saved, setSaved] = useState(false);
-  const [voted, setVoted] = useState<1 | -1 | 0>(0);
+  const [saved, setSaved] = useState(initialSaved);
+  const [voted, setVoted] = useState<1 | -1 | 0>(initialVote);
   const [pending, setPending] = useState(false);
 
   async function onSave(e: React.MouseEvent) {
