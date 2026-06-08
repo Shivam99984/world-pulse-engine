@@ -39,51 +39,73 @@ function FeedPage() {
   const qc = useQueryClient();
   const [active, setActive] = useState<string[]>([]);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [countries, setCountries] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
   const [risk, setRisk] = useState<[number, number]>([0, 100]);
   const [confidence, setConfidence] = useState<[number, number]>([0, 100]);
   const list = useServerFn(listEvents);
+  const facetsFn = useServerFn(listEventFacets);
+  const interactionsFn = useServerFn(listMyInteractions);
   const generate = useServerFn(generateEvents);
   const ingest = useServerFn(ingestRealNews);
   const [generating, setGenerating] = useState(false);
   const [ingesting, setIngesting] = useState(false);
   const [pending, setPending] = useState(0);
 
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["events", active],
-    queryFn: () => list({ data: { topics: active.length ? active : undefined, limit: 40 } }),
+    queryKey: ["events", active, debouncedQuery, countries, industries],
+    queryFn: () =>
+      list({
+        data: {
+          topics: active.length ? active : undefined,
+          query: debouncedQuery || undefined,
+          countries: countries.length ? countries : undefined,
+          industries: industries.length ? industries : undefined,
+          limit: 60,
+        },
+      }),
   });
 
   const allEvents = (data?.events ?? []) as IntelEvent[];
 
-  const { countryOptions, industryOptions } = useMemo(() => {
-    const c = new Set<string>();
-    const i = new Set<string>();
-    for (const e of allEvents) {
-      (e.countries ?? []).forEach((x) => c.add(x));
-      (e.industries ?? []).forEach((x) => i.add(x));
-    }
-    return {
-      countryOptions: Array.from(c).sort(),
-      industryOptions: Array.from(i).sort(),
-    };
-  }, [allEvents]);
+  const { data: facets } = useQuery({
+    queryKey: ["event-facets"],
+    queryFn: () => facetsFn(),
+    staleTime: 60_000,
+  });
+  const countryOptions = facets?.countries ?? [];
+  const industryOptions = facets?.industries ?? [];
+
+  // Hydrate saved + voted state for the visible cards (auth-gated; silently skips if signed out)
+  const eventIds = useMemo(() => allEvents.map((e) => e.id), [allEvents]);
+  const { data: interactions } = useQuery({
+    queryKey: ["my-interactions", eventIds],
+    queryFn: async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess.session || eventIds.length === 0) {
+        return { saved: [] as string[], votes: {} as Record<string, number> };
+      }
+      return interactionsFn({ data: { eventIds } });
+    },
+    staleTime: 30_000,
+  });
+  const savedSet = useMemo(() => new Set(interactions?.saved ?? []), [interactions]);
+  const voteMap = interactions?.votes ?? {};
 
   const events = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return allEvents.filter((e) => {
       if (e.risk_score < risk[0] || e.risk_score > risk[1]) return false;
       if (e.confidence < confidence[0] || e.confidence > confidence[1]) return false;
-      if (countries.length && !(e.countries ?? []).some((c) => countries.includes(c))) return false;
-      if (industries.length && !(e.industries ?? []).some((x) => industries.includes(x))) return false;
-      if (q) {
-        const hay = `${e.headline} ${e.summary} ${(e.countries ?? []).join(" ")} ${(e.industries ?? []).join(" ")}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
       return true;
     });
-  }, [allEvents, query, countries, industries, risk, confidence]);
+  }, [allEvents, risk, confidence]);
 
   const activeFilterCount =
     countries.length +
