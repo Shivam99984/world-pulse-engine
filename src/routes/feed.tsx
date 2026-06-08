@@ -335,17 +335,40 @@ function FeedPage() {
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {isLoading &&
           Array.from({ length: 9 }).map((_, i) => <IntelCardSkeleton key={i} />)}
-        {!isLoading && events.length === 0 && (
+        {!isLoading && events.length === 0 && (activeFilterCount > 0 || active.length > 0 || debouncedQuery) && (
+          <div className="col-span-full rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
+            <Search className="mx-auto h-6 w-6 text-muted-foreground" />
+            <p className="mt-3 text-sm text-muted-foreground">No events match these filters.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => {
+                clearFilters();
+                setActive([]);
+              }}
+            >
+              <X className="mr-1 h-3.5 w-3.5" /> Clear all filters
+            </Button>
+          </div>
+        )}
+        {!isLoading && events.length === 0 && activeFilterCount === 0 && active.length === 0 && !debouncedQuery && (
           <div className="col-span-full rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
             <RefreshCw className="mx-auto h-6 w-6 text-muted-foreground" />
             <p className="mt-3 text-sm text-muted-foreground">
-              No intelligence yet. Tap <span className="font-medium">Generate fresh intel</span> to
-              compose live events with AI.
+              No intelligence yet. Tap <span className="font-medium">Generate fresh intel</span> or{" "}
+              <span className="font-medium">Ingest real news</span> to populate the feed.
             </p>
           </div>
         )}
         {events.map((e, i) => (
-          <IntelCard key={e.id} event={e} index={i} />
+          <IntelCard
+            key={e.id}
+            event={e}
+            index={i}
+            initialSaved={savedSet.has(e.id)}
+            initialVote={(voteMap[e.id] as 1 | -1 | 0) ?? 0}
+          />
         ))}
       </div>
     </div>
