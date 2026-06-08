@@ -1,87 +1,163 @@
-# Add Live Data
 
-Real signals + live UI across Feed, Heatmap, and Home.
+# /feed Page — Full Audit
 
-## 1. Real news ingestion (no API key needed)
+A complete map of every API, AI call, data flow, and feature on the Live Intelligence Feed page, plus a working/not-working status and a prioritized improvement roadmap.
 
-Use **GDELT 2.0 Doc API** (free, no key) as the primary news source. Tap GDELT's `doc` endpoint for the last 15 minutes of global English-language news, then feed the headlines/snippets into the existing AI pipeline to structure them into the `events` table — replacing the purely synthetic generator.
+---
 
-- New server fn `ingestRealEvents()` in `src/lib/ingest.functions.ts`:
-  1. `fetch("https://api.gdeltproject.org/api/v2/doc/doc?...&format=json&maxrecords=30&timespan=15min")`
-  2. Deduplicate by headline (case-insensitive) against the last 200 rows in `events`.
-  3. Pass batches of ~10 fresh articles to the AI gateway (`google/gemini-3-flash-preview`) with a new prompt that **summarizes the real article** into our `EventSchema` (headline, summary, category, sentiment, risk_score, confidence, countries, industries, sources, breaking). Sources carry the actual outlet domains GDELT returns.
-  4. Bulk insert into `events`.
-- Update `/api/public/cron-refresh` to call `ingestRealEvents()` first; if 0 inserted, fall back to the existing `generateEvents()` so the feed never goes empty.
-- Keep `generateEvents()` exported as a manual "demo refill" button on `/dashboard`.
+## 1. Page Composition (`src/routes/feed.tsx`)
 
-## 2. Live market & economic data
+Top-to-bottom layout:
 
-New `market_quotes` table + server fn that polls free public APIs and writes a fresh snapshot every minute.
+1. **LiveTicker** — scrolling market marquee (crypto, FX, commodities, indices)
+2. **Header** — "Live Intelligence Feed" + 2 action buttons
+   - `Ingest real news` → calls `ingestRealNews` server fn
+   - `Generate fresh intel` → calls `generateEvents` server fn
+3. **LiveStatsBar** — 4 KPIs: events/min, active countries, avg risk, markets up/down
+4. **"N new events" pill** — appears via Supabase Realtime when new rows hit `events`
+5. **Topic chips** — All + `TOPICS` array (category filter)
+6. **Filter row** — search input, Countries multi-select, Industries multi-select, Risk & Confidence range popover
+7. **Active filter badges** + result counter
+8. **Card grid** — `IntelCard` components (3 cols xl)
 
-Migration:
+---
+
+## 2. External APIs / AI / Tools Used
+
+### AI provider
+| Where | Tool | Model | Purpose |
+|---|---|---|---|
+| `generateEvents` (events.functions.ts) | Groq via `@ai-sdk/openai-compatible` + `generateObject` | `llama-3.3-70b-versatile` | Synthesize 6–14 fake-but-plausible global events into `EventSchema` |
+| `ingestRealNews` (sources.functions.ts) | Groq + `generateText` (manual JSON parse) | `llama-3.3-70b-versatile` | Enrich real RSS headlines into structured events |
+| `analyzeEvent` (event detail page) | Groq + `generateText` | same | Cascading impacts + predictions (used after navigating into a card) |
+
+Key: `GROQ_API_KEY` (Supabase secret). Free tier ~30 req/min, 14.4k/day.
+
+### Real-world data sources (no keys, free)
+| API | File | Used by |
+|---|---|---|
+| BBC World/Business/Tech RSS, Al Jazeera RSS, Fox World RSS, Deutsche Welle RSS, The Guardian RSS | `sources.functions.ts` | `Ingest real news` button |
+| CoinGecko `simple/price` (BTC, ETH, SOL + 24h change) | `markets.functions.ts` | LiveTicker |
+| Frankfurter `v1/latest` (ECB FX: EUR, JPY, GBP, CNY) | `markets.functions.ts` | LiveTicker |
+| Yahoo Finance `v7/finance/quote` (GC=F gold, CL=F oil, ^GSPC, ^NDX, ^VIX, FX % change) | `markets.functions.ts` | LiveTicker |
+
+### Backend (Lovable Cloud / Supabase)
+- Tables read: `events`, `event_impacts`, `market_quotes`
+- Tables written: `events` (via `supabaseAdmin`), `saved_events`, `votes` (auth-scoped via `requireSupabaseAuth`)
+- Realtime channels: `events-live` (new-event pill), `live-stats` (KPI invalidation), `market_quotes-ticker` (ticker invalidation)
+
+### Internal server functions called from the page
+- `listEvents` — load cards (TanStack Query, key `["events", active]`)
+- `generateEvents` — Groq synthetic batch insert
+- `ingestRealNews` — RSS fetch + Groq enrichment + insert
+- `listMarketQuotes` (inside LiveTicker) — reads `market_quotes`, opportunistic refresh if >90s stale (calls `refreshMarkets` which hits CoinGecko + Frankfurter + Yahoo)
+- `liveStats` (inside LiveStatsBar) — aggregates events/impacts/quotes counters
+- `toggleSave`, `castVote` (per card)
+
+---
+
+## 3. Feature Status
+
+| Feature | Status | Notes |
+|---|---|---|
+| Card list / pagination | ✅ Works | Limit 40, ordered DESC by `created_at` |
+| Topic chip filter | ✅ Works | Server-side via `.in("category", topics)` |
+| Search box | ✅ Works | Client-side over headline/summary/countries/industries |
+| Countries / Industries multi-select | ⚠️ Partial | Options derived only from the 40 currently-loaded events — not the full DB universe |
+| Risk + Confidence range | ✅ Works | Client-side filter |
+| Active filter badges + clear | ✅ Works | |
+| "N new events" realtime pill | ✅ Works | Supabase Realtime INSERT on `events` |
+| Generate fresh intel (Groq) | ✅ Works | Switched to `generateObject` with `BatchSchema` — fixed the previous `AI_NoObjectGeneratedError` |
+| Ingest real news (RSS → Groq) | ✅ Works | Has heuristic fallback if Groq fails; **but** uses `generateText` + manual JSON parsing instead of `generateObject` (brittle) |
+| LiveTicker scrolling marquee | ✅ Works | 20s refetch + realtime + opportunistic refresh on stale |
+| LiveStatsBar KPIs | ✅ Works | 12s refetch + realtime invalidation |
+| Save / Vote buttons | ✅ Works | Auth-gated, optimistic, toasts on error |
+| Navigate to event detail | ✅ Works | `Link to="/event/$id"` |
+| SEO head meta | ✅ Present | Title + description set, no og:image |
+| Mobile layout | ✅ Works | Grid collapses to 1/2/3 columns |
+
+No P0 bugs detected in the current code.
+
+---
+
+## 4. Known Weaknesses / Risks
+
+1. **Filter universe is too small** — Countries/Industries dropdowns reflect only the 40 visible events, hiding most options.
+2. **Search is client-only** — typing doesn't search the rest of the DB; only the 40 fetched.
+3. **`ingestRealNews` uses `generateText` + manual `JSON.parse`** — same fragility class that hit `generateEvents` before; should migrate to `generateObject` + `BatchSchema`.
+4. **Yahoo Finance unofficial endpoint** — can return 401/empty without warning; ticker silently drops those quotes.
+5. **No deduplication on RSS ingest** — same headline can be inserted on repeated clicks.
+6. **No infinite scroll / pagination** — capped at 40, no "Load more".
+7. **No "time since" / freshness indicator** on each card.
+8. **No optimistic insert** when user clicks Generate — they wait for the round-trip, then cards animate in.
+9. **Save/Vote initial state not hydrated** — every card starts as `saved=false`, `voted=0` even when the user already saved/voted previously.
+10. **No empty-state CTA when filters return 0** vs. when the feed is truly empty (currently same UI).
+11. **No analytics on which topics/categories users filter** — losing product signal.
+12. **No share / copy-link per event** from the card.
+13. **`og:image`** not set on the route head → poor link unfurls.
+14. **Marquee animation** depends on a `animate-marquee` Tailwind class — verify it pauses on hover for accessibility.
+15. **Cron** — `/api/public/cron-markets` and `/api/public/cron-refresh` exist but no scheduler is wired; freshness relies on opportunistic refresh in `listMarketQuotes`.
+
+---
+
+## 5. Proposed Improvements (prioritized)
+
+### P1 — High impact, low effort
+- **Move Countries/Industries filter to server**: add `distinct` aggregation server fn `listFilterFacets()` that returns the union across the full `events` table (last 7 days).
+- **Server-side search**: pass `query` into `listEvents` and use Postgres `ilike` / FTS on `headline || summary`.
+- **Dedupe RSS ingest**: hash `lower(headline)` against the last 200 rows before insert.
+- **Migrate `ingestRealNews` to `generateObject`** with a Zod schema (same pattern that fixed `generateEvents`).
+- **Hydrate save/vote state**: new `listMyInteractions(eventIds)` server fn, merge into card props.
+- **Empty-state polish**: distinguish "no events yet" vs. "no events match filters → Clear filters".
+
+### P2 — Bigger UX wins
+- **Infinite scroll** via TanStack Query `useInfiniteQuery` with `created_at` cursor.
+- **Freshness chip** on each card (`2m ago`, pulse if <60s).
+- **Auto-ingest every 60s** in the background (silent) so the "N new events" pill keeps appearing without user clicks. Wire `/api/public/cron-refresh` to a scheduler or in-page interval.
+- **Optimistic skeleton** while `generateEvents`/`ingestRealNews` are in flight — append 6–10 shimmer cards at the top.
+- **Per-card share menu**: copy link, X/LinkedIn share, "open source" → original article URL (requires storing source URLs in `events`).
+- **Marquee accessibility**: pause on hover/focus, `prefers-reduced-motion` honored.
+
+### P3 — Strategic
+- **Add a "Sources" column to `events`** storing real URLs from GDELT/RSS so cards can deep-link to the original article.
+- **GDELT integration** (already in `.lovable/plan.md`) as a higher-volume, structured news source alongside the 7 RSS feeds.
+- **Personalized ranking**: re-rank cards by overlap with `user_interests` once the user is signed in.
+- **Saved-event indicator counts** on topic chips ("AI · 12 saved").
+- **Server-side filter analytics**: log filter combinations to a `feed_filter_events` table for product insight.
+- **Edge caching** on `listEvents` (Cloudflare `Cache-Control: s-maxage=15`) since the feed is publicly readable.
+- **og:image generation** per route (or static hero) for share unfurls.
+
+---
+
+## 6. Quick Reference — Data Flow Diagram
 
 ```text
-market_quotes
-  symbol text PK     -- BTC, ETH, GOLD, OIL, EURUSD, USDJPY, GBPUSD, SPX, NDX
-  label text         -- "Bitcoin", "Brent Crude", ...
-  category text      -- crypto | fx | commodity | index
-  price numeric
-  change_24h numeric -- percentage
-  history jsonb      -- last 30 points [{t, v}] for sparkline
-  updated_at timestamptz
-RLS: public_read = true; writes via supabaseAdmin only
-realtime: ADD TABLE market_quotes TO publication supabase_realtime
+[User clicks Generate]      [User clicks Ingest]      [Auto, every 12–20s]
+        |                          |                            |
+        v                          v                            v
+  generateEvents()          ingestRealNews()              listMarketQuotes()
+  (Groq llama-3.3)          RSS x7 -> Groq enrich        CoinGecko+Frankfurter+Yahoo
+        |                          |                            |
+        +-------> INSERT events <--+                            v
+                       |                              UPSERT market_quotes
+                       v                                        |
+        Supabase Realtime INSERT --> "N new events" pill        v
+                       v                                  LiveTicker re-renders
+                  listEvents()
+                       |
+                       v
+                IntelCard grid
 ```
 
-Server fn `refreshMarkets()` in `src/lib/markets.functions.ts`:
-- Crypto: `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true`
-- FX: `https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR,JPY,GBP,CNY` (free, no key, ECB-backed)
-- Commodities + indices: `https://query1.finance.yahoo.com/v7/finance/quote?symbols=GC=F,CL=F,^GSPC,^NDX` (free)
-- For each symbol, append a `{t, v}` point to `history` (trim to 30), upsert row.
+---
 
-Server route `/api/public/cron-markets` (POST) calls `refreshMarkets()` so an external scheduler can hit it every 60s. The Feed/Heatmap/Home `LiveTicker` also calls `refreshMarkets()` opportunistically when stale (>60s) so the data feels live even without an external cron.
+## 7. Suggested Next Action
 
-Read fn `listMarketQuotes()` returns the full table; consumed by TanStack Query with `refetchInterval: 15_000` and a Supabase realtime channel to invalidate immediately on updates.
+If you'd like me to proceed, I'd pick the **P1 batch** in one pass:
+1. Server-side facets for Country/Industry filters
+2. Server-side search in `listEvents`
+3. RSS dedupe + `generateObject` migration for `ingestRealNews`
+4. Hydrate saved/voted state per card
+5. Distinguish empty vs. filtered-empty states
 
-## 3. Global live UI
-
-Three reusable components in `src/components/live/`:
-
-- `LiveTicker.tsx` — horizontal scrolling marquee at the top of Feed, Heatmap, and Home hero. Renders each market quote with symbol, price, 24h % (green/red), and a tiny 30-point inline SVG sparkline. Subscribes to the markets query.
-- `LiveStatsBar.tsx` — compact row of counters: **events/min** (rolling 5-min average from `events.created_at`), **active countries** (distinct `country_code` in last hour from `event_impacts`), **avg risk** (mean of last 50 events' `risk_score`), **markets up/down** (count from quotes). Updates via TanStack Query (`refetchInterval: 10_000`) + `postgres_changes` subscriptions on `events` and `event_impacts`.
-- `Sparkline.tsx` — pure SVG sparkline (props: `points: number[]`, `color`, `width`, `height`); no chart lib dependency.
-
-New server fn `liveStats()` aggregates the three counters in one round-trip via `supabaseAdmin`.
-
-Surface integration:
-- **Home (`/`)**: `LiveTicker` directly under hero CTA + `LiveStatsBar` above feature grid.
-- **Feed (`/feed`)**: `LiveTicker` above filters, `LiveStatsBar` between filters and event list.
-- **Heatmap (`/heatmap`)**: `LiveStatsBar` replacing the current static stats row; `LiveTicker` above the map section.
-
-## 4. Technical notes
-
-- All fetches happen in server fns — no external API keys leak to the client.
-- GDELT, Frankfurter, CoinGecko, Yahoo Finance all support CORS-free server fetches; no Node-only deps required (Worker-compatible).
-- Existing `attachSupabaseAuth` middleware unaffected; new fns are public reads via `supabaseAdmin` (no auth needed for the ticker/stats).
-- New realtime channel on `market_quotes` added to `supabase_realtime` publication.
-- Failure isolation: each upstream source wrapped in try/catch so one bad provider doesn't blank the ticker.
-
-## Files
-
-Create:
-- `src/lib/ingest.functions.ts`
-- `src/lib/markets.functions.ts`
-- `src/lib/live-stats.functions.ts`
-- `src/routes/api/public/cron-markets.ts`
-- `src/components/live/LiveTicker.tsx`
-- `src/components/live/LiveStatsBar.tsx`
-- `src/components/live/Sparkline.tsx`
-
-Edit:
-- `src/routes/api/public/cron-refresh.ts` — call `ingestRealEvents()` first
-- `src/routes/index.tsx` — mount ticker + stats
-- `src/routes/feed.tsx` — mount ticker + stats
-- `src/routes/heatmap.tsx` — swap static stats for `LiveStatsBar`, add ticker
-
-Migration:
-- `market_quotes` table + RLS + realtime publication.
+Tell me which items to implement (or "do all P1") and I'll switch to build mode.
