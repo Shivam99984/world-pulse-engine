@@ -100,6 +100,34 @@ export function IntelCard({
   const [saved, setSaved] = useState(initialSaved);
   const [voted, setVoted] = useState<1 | -1 | 0>(initialVote);
   const [pending, setPending] = useState(false);
+  const now = useNow(30_000);
+  const fresh = timeAgo(event.created_at);
+  // Recompute label using `now` to trigger re-render
+  void now;
+  const shareUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/event/${event.id}` : `/event/${event.id}`;
+  const shareText = event.headline;
+  async function copyLink(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Couldn't copy link");
+    }
+  }
+  function shareTo(e: React.MouseEvent, target: "x" | "linkedin") {
+    e.preventDefault();
+    e.stopPropagation();
+    const u = encodeURIComponent(shareUrl);
+    const t = encodeURIComponent(shareText);
+    const href =
+      target === "x"
+        ? `https://twitter.com/intent/tweet?url=${u}&text=${t}`
+        : `https://www.linkedin.com/sharing/share-offsite/?url=${u}`;
+    window.open(href, "_blank", "noopener,noreferrer");
+  }
 
   async function onSave(e: React.MouseEvent) {
     e.preventDefault();
