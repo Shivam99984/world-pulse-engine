@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, RadioTower, RefreshCw, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { Loader2, RadioTower, Radio, RefreshCw, Search, SlidersHorizontal, Sparkles, Wifi, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
@@ -19,6 +19,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { SplitText } from "@/components/rb/SplitText";
 import { LiveTicker } from "@/components/live/LiveTicker";
 import { LiveStatsBar } from "@/components/live/LiveStatsBar";
+import {
+  getStoredTransport,
+  setStoredTransport,
+  useRealtimeEvents,
+  type RealtimeTransport,
+} from "@/hooks/use-realtime-events";
 
 export const Route = createFileRoute("/feed")({
   head: () => ({
