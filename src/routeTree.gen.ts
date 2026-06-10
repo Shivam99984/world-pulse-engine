@@ -23,6 +23,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as StorylineIdRouteImport } from './routes/storyline.$id'
 import { Route as EventIdRouteImport } from './routes/event.$id'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiPublicEventsStreamRouteImport } from './routes/api/public/events-stream'
 import { Route as ApiPublicCronRefreshRouteImport } from './routes/api/public/cron-refresh'
 import { Route as ApiPublicCronMarketsRouteImport } from './routes/api/public/cron-markets'
 import { Route as ApiPublicV1EventsRouteImport } from './routes/api/public/v1/events'
@@ -97,6 +98,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicEventsStreamRoute = ApiPublicEventsStreamRouteImport.update({
+  id: '/api/public/events-stream',
+  path: '/api/public/events-stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCronRefreshRoute = ApiPublicCronRefreshRouteImport.update({
   id: '/api/public/cron-refresh',
   path: '/api/public/cron-refresh',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/storyline/$id': typeof StorylineIdRoute
   '/api/public/cron-markets': typeof ApiPublicCronMarketsRoute
   '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
+  '/api/public/events-stream': typeof ApiPublicEventsStreamRoute
   '/api/public/v1/events': typeof ApiPublicV1EventsRoute
 }
 export interface FileRoutesByTo {
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/storyline/$id': typeof StorylineIdRoute
   '/api/public/cron-markets': typeof ApiPublicCronMarketsRoute
   '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
+  '/api/public/events-stream': typeof ApiPublicEventsStreamRoute
   '/api/public/v1/events': typeof ApiPublicV1EventsRoute
 }
 export interface FileRoutesById {
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   '/storyline/$id': typeof StorylineIdRoute
   '/api/public/cron-markets': typeof ApiPublicCronMarketsRoute
   '/api/public/cron-refresh': typeof ApiPublicCronRefreshRoute
+  '/api/public/events-stream': typeof ApiPublicEventsStreamRoute
   '/api/public/v1/events': typeof ApiPublicV1EventsRoute
 }
 export interface FileRouteTypes {
@@ -190,6 +199,7 @@ export interface FileRouteTypes {
     | '/storyline/$id'
     | '/api/public/cron-markets'
     | '/api/public/cron-refresh'
+    | '/api/public/events-stream'
     | '/api/public/v1/events'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/storyline/$id'
     | '/api/public/cron-markets'
     | '/api/public/cron-refresh'
+    | '/api/public/events-stream'
     | '/api/public/v1/events'
   id:
     | '__root__'
@@ -228,6 +239,7 @@ export interface FileRouteTypes {
     | '/storyline/$id'
     | '/api/public/cron-markets'
     | '/api/public/cron-refresh'
+    | '/api/public/events-stream'
     | '/api/public/v1/events'
   fileRoutesById: FileRoutesById
 }
@@ -248,6 +260,7 @@ export interface RootRouteChildren {
   StorylineIdRoute: typeof StorylineIdRoute
   ApiPublicCronMarketsRoute: typeof ApiPublicCronMarketsRoute
   ApiPublicCronRefreshRoute: typeof ApiPublicCronRefreshRoute
+  ApiPublicEventsStreamRoute: typeof ApiPublicEventsStreamRoute
   ApiPublicV1EventsRoute: typeof ApiPublicV1EventsRoute
 }
 
@@ -351,6 +364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/events-stream': {
+      id: '/api/public/events-stream'
+      path: '/api/public/events-stream'
+      fullPath: '/api/public/events-stream'
+      preLoaderRoute: typeof ApiPublicEventsStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cron-refresh': {
       id: '/api/public/cron-refresh'
       path: '/api/public/cron-refresh'
@@ -392,6 +412,7 @@ const rootRouteChildren: RootRouteChildren = {
   StorylineIdRoute: StorylineIdRoute,
   ApiPublicCronMarketsRoute: ApiPublicCronMarketsRoute,
   ApiPublicCronRefreshRoute: ApiPublicCronRefreshRoute,
+  ApiPublicEventsStreamRoute: ApiPublicEventsStreamRoute,
   ApiPublicV1EventsRoute: ApiPublicV1EventsRoute,
 }
 export const routeTree = rootRouteImport

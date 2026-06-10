@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, RadioTower, RefreshCw, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { Loader2, RadioTower, Radio, RefreshCw, Search, SlidersHorizontal, Sparkles, Wifi, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
@@ -19,6 +19,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { SplitText } from "@/components/rb/SplitText";
 import { LiveTicker } from "@/components/live/LiveTicker";
 import { LiveStatsBar } from "@/components/live/LiveStatsBar";
+import {
+  getStoredTransport,
+  setStoredTransport,
+  useRealtimeEvents,
+  type RealtimeTransport,
+} from "@/hooks/use-realtime-events";
 
 export const Route = createFileRoute("/feed")({
   head: () => ({
@@ -52,6 +58,11 @@ function FeedPage() {
   const [generating, setGenerating] = useState(false);
   const [ingesting, setIngesting] = useState(false);
   const [pending, setPending] = useState(0);
+  const [transport, setTransport] = useState<RealtimeTransport>(() => getStoredTransport());
+  function chooseTransport(t: RealtimeTransport) {
+    setTransport(t);
+    setStoredTransport(t);
+  }
 
   // Debounce search input
   useEffect(() => {
@@ -121,56 +132,47 @@ function FeedPage() {
     setConfidence([0, 100]);
   }
 
+  const { status: rtStatus, activeTransport } = useRealtimeEvents({
+    transport,
+    autoFallback: true,
+    onInsert: (newEvent) => {
+      let prepended = false;
+      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
+        if (!old?.events) return old;
+        if (old.events.some((e) => e.id === newEvent.id)) return old;
+        prepended = true;
+        return { ...old, events: [newEvent, ...old.events].slice(0, 120) };
+      });
+      if (prepended) {
+        setPending((n) => n + 1);
+        qc.invalidateQueries({ queryKey: ["event-facets"] });
+      }
+    },
+    onUpdate: (updated) => {
+      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
+        if (!old?.events) return old;
+        return {
+          ...old,
+          events: old.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
+        };
+      });
+    },
+    onDelete: (removedId) => {
+      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
+        if (!old?.events) return old;
+        return { ...old, events: old.events.filter((e) => e.id !== removedId) };
+      });
+    },
+  });
+
+  // Notify the user when the chosen transport had to fall back to the other.
   useEffect(() => {
-    const channel = supabase
-      .channel("events-live")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "events" },
-        (payload) => {
-          const newEvent = payload.new as IntelEvent;
-          let prepended = false;
-          qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-            if (!old?.events) return old;
-            if (old.events.some((e) => e.id === newEvent.id)) return old;
-            prepended = true;
-            return { ...old, events: [newEvent, ...old.events].slice(0, 120) };
-          });
-          if (prepended) {
-            setPending((n) => n + 1);
-            // refresh facets to include new countries/industries
-            qc.invalidateQueries({ queryKey: ["event-facets"] });
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "events" },
-        (payload) => {
-          const updated = payload.new as IntelEvent;
-          qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-            if (!old?.events) return old;
-            return { ...old, events: old.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)) };
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "events" },
-        (payload) => {
-          const removedId = (payload.old as { id?: string }).id;
-          if (!removedId) return;
-          qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-            if (!old?.events) return old;
-            return { ...old, events: old.events.filter((e) => e.id !== removedId) };
-          });
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [qc]);
+    if (activeTransport !== transport && rtStatus === "connected") {
+      toast.message(`Live updates fell back to ${activeTransport.toUpperCase()}`, {
+        description: `${transport.toUpperCase()} couldn't connect — using ${activeTransport.toUpperCase()} instead.`,
+      });
+    }
+  }, [activeTransport, transport, rtStatus]);
 
   async function loadNew() {
     setPending(0);
@@ -221,7 +223,13 @@ function FeedPage() {
             AI-clustered events across geopolitics, markets, technology, and social.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <TransportToggle
+            transport={transport}
+            active={activeTransport}
+            status={rtStatus}
+            onChange={chooseTransport}
+          />
           <Button onClick={onIngest} disabled={ingesting} variant="outline">
             {ingesting ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -499,4 +507,84 @@ function RangeBlock({
     </div>
   );
 }
+
+function TransportToggle({
+  transport,
+  active,
+  status,
+  onChange,
+}: {
+  transport: RealtimeTransport;
+  active: RealtimeTransport;
+  status: "connecting" | "connected" | "error" | "idle";
+  onChange: (t: RealtimeTransport) => void;
+}) {
+  const dotColor =
+    status === "connected"
+      ? "bg-emerald-500"
+      : status === "connecting"
+        ? "bg-amber-500 animate-pulse"
+        : "bg-red-500";
+  const fellBack = active !== transport;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5">
+          <span className={cn("h-1.5 w-1.5 rounded-full", dotColor)} />
+          {active === "websocket" ? (
+            <Wifi className="h-3.5 w-3.5" />
+          ) : (
+            <Radio className="h-3.5 w-3.5" />
+          )}
+          <span className="text-xs font-medium uppercase">{active}</span>
+          {fellBack && (
+            <span className="rounded-full bg-amber-500/15 px-1.5 text-[10px] font-semibold text-amber-500">
+              fallback
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 space-y-3" align="end">
+        <div>
+          <div className="text-sm font-semibold">Real-time transport</div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Choose how the feed streams new events. If the chosen transport fails, the other is
+            used automatically.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => onChange("websocket")}
+            className={cn(
+              "flex flex-col items-start gap-1 rounded-md border p-2 text-left text-xs transition-colors hover:bg-accent",
+              transport === "websocket" ? "border-primary bg-primary/5" : "border-border",
+            )}
+          >
+            <span className="flex items-center gap-1 font-medium">
+              <Wifi className="h-3.5 w-3.5" /> WebSocket
+            </span>
+            <span className="text-muted-foreground">Lowest latency, push-based.</span>
+          </button>
+          <button
+            onClick={() => onChange("sse")}
+            className={cn(
+              "flex flex-col items-start gap-1 rounded-md border p-2 text-left text-xs transition-colors hover:bg-accent",
+              transport === "sse" ? "border-primary bg-primary/5" : "border-border",
+            )}
+          >
+            <span className="flex items-center gap-1 font-medium">
+              <Radio className="h-3.5 w-3.5" /> SSE
+            </span>
+            <span className="text-muted-foreground">HTTP stream, proxy-friendly.</span>
+          </button>
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Status</span>
+          <span className="font-mono uppercase">{status}</span>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 
