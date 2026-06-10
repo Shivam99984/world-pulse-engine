@@ -63,6 +63,9 @@ function FeedPage() {
     setTransport(t);
     setStoredTransport(t);
   }
+
+  // Debounce search input
+  useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
     return () => clearTimeout(t);
   }, [query]);
