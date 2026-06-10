@@ -1,13 +1,16 @@
 import { motion } from "framer-motion";
 import { Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
   Bookmark,
+  Clock,
   Flame,
   Globe2,
+  Link2,
+  Share2,
   ThumbsDown,
   ThumbsUp,
   TrendingDown,
@@ -17,6 +20,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { castVote, toggleSave } from "@/lib/events.functions";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export type IntelEvent = {
   id: string;
