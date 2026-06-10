@@ -223,7 +223,13 @@ function FeedPage() {
             AI-clustered events across geopolitics, markets, technology, and social.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <TransportToggle
+            transport={transport}
+            active={activeTransport}
+            status={rtStatus}
+            onChange={chooseTransport}
+          />
           <Button onClick={onIngest} disabled={ingesting} variant="outline">
             {ingesting ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
