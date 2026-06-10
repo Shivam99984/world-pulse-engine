@@ -508,3 +508,83 @@ function RangeBlock({
   );
 }
 
+function TransportToggle({
+  transport,
+  active,
+  status,
+  onChange,
+}: {
+  transport: RealtimeTransport;
+  active: RealtimeTransport;
+  status: "connecting" | "connected" | "error" | "idle";
+  onChange: (t: RealtimeTransport) => void;
+}) {
+  const dotColor =
+    status === "connected"
+      ? "bg-emerald-500"
+      : status === "connecting"
+        ? "bg-amber-500 animate-pulse"
+        : "bg-red-500";
+  const fellBack = active !== transport;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5">
+          <span className={cn("h-1.5 w-1.5 rounded-full", dotColor)} />
+          {active === "websocket" ? (
+            <Wifi className="h-3.5 w-3.5" />
+          ) : (
+            <Radio className="h-3.5 w-3.5" />
+          )}
+          <span className="text-xs font-medium uppercase">{active}</span>
+          {fellBack && (
+            <span className="rounded-full bg-amber-500/15 px-1.5 text-[10px] font-semibold text-amber-500">
+              fallback
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 space-y-3" align="end">
+        <div>
+          <div className="text-sm font-semibold">Real-time transport</div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Choose how the feed streams new events. If the chosen transport fails, the other is
+            used automatically.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => onChange("websocket")}
+            className={cn(
+              "flex flex-col items-start gap-1 rounded-md border p-2 text-left text-xs transition-colors hover:bg-accent",
+              transport === "websocket" ? "border-primary bg-primary/5" : "border-border",
+            )}
+          >
+            <span className="flex items-center gap-1 font-medium">
+              <Wifi className="h-3.5 w-3.5" /> WebSocket
+            </span>
+            <span className="text-muted-foreground">Lowest latency, push-based.</span>
+          </button>
+          <button
+            onClick={() => onChange("sse")}
+            className={cn(
+              "flex flex-col items-start gap-1 rounded-md border p-2 text-left text-xs transition-colors hover:bg-accent",
+              transport === "sse" ? "border-primary bg-primary/5" : "border-border",
+            )}
+          >
+            <span className="flex items-center gap-1 font-medium">
+              <Radio className="h-3.5 w-3.5" /> SSE
+            </span>
+            <span className="text-muted-foreground">HTTP stream, proxy-friendly.</span>
+          </button>
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Status</span>
+          <span className="font-mono uppercase">{status}</span>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+
