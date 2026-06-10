@@ -132,56 +132,47 @@ function FeedPage() {
     setConfidence([0, 100]);
   }
 
+  const { status: rtStatus, activeTransport } = useRealtimeEvents({
+    transport,
+    autoFallback: true,
+    onInsert: (newEvent) => {
+      let prepended = false;
+      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
+        if (!old?.events) return old;
+        if (old.events.some((e) => e.id === newEvent.id)) return old;
+        prepended = true;
+        return { ...old, events: [newEvent, ...old.events].slice(0, 120) };
+      });
+      if (prepended) {
+        setPending((n) => n + 1);
+        qc.invalidateQueries({ queryKey: ["event-facets"] });
+      }
+    },
+    onUpdate: (updated) => {
+      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
+        if (!old?.events) return old;
+        return {
+          ...old,
+          events: old.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
+        };
+      });
+    },
+    onDelete: (removedId) => {
+      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
+        if (!old?.events) return old;
+        return { ...old, events: old.events.filter((e) => e.id !== removedId) };
+      });
+    },
+  });
+
+  // Notify the user when the chosen transport had to fall back to the other.
   useEffect(() => {
-    const channel = supabase
-      .channel("events-live")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "events" },
-        (payload) => {
-          const newEvent = payload.new as IntelEvent;
-          let prepended = false;
-          qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-            if (!old?.events) return old;
-            if (old.events.some((e) => e.id === newEvent.id)) return old;
-            prepended = true;
-            return { ...old, events: [newEvent, ...old.events].slice(0, 120) };
-          });
-          if (prepended) {
-            setPending((n) => n + 1);
-            // refresh facets to include new countries/industries
-            qc.invalidateQueries({ queryKey: ["event-facets"] });
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "events" },
-        (payload) => {
-          const updated = payload.new as IntelEvent;
-          qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-            if (!old?.events) return old;
-            return { ...old, events: old.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)) };
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "events" },
-        (payload) => {
-          const removedId = (payload.old as { id?: string }).id;
-          if (!removedId) return;
-          qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-            if (!old?.events) return old;
-            return { ...old, events: old.events.filter((e) => e.id !== removedId) };
-          });
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [qc]);
+    if (activeTransport !== transport && rtStatus === "connected") {
+      toast.message(`Live updates fell back to ${activeTransport.toUpperCase()}`, {
+        description: `${transport.toUpperCase()} couldn't connect — using ${activeTransport.toUpperCase()} instead.`,
+      });
+    }
+  }, [activeTransport, transport, rtStatus]);
 
   async function loadNew() {
     setPending(0);
