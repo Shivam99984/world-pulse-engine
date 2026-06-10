@@ -58,9 +58,11 @@ function FeedPage() {
   const [generating, setGenerating] = useState(false);
   const [ingesting, setIngesting] = useState(false);
   const [pending, setPending] = useState(0);
-
-  // Debounce search input
-  useEffect(() => {
+  const [transport, setTransport] = useState<RealtimeTransport>(() => getStoredTransport());
+  function chooseTransport(t: RealtimeTransport) {
+    setTransport(t);
+    setStoredTransport(t);
+  }
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
     return () => clearTimeout(t);
   }, [query]);
