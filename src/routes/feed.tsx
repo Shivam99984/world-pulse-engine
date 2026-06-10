@@ -475,6 +475,8 @@ function FeedPage() {
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {isLoading &&
           Array.from({ length: 9 }).map((_, i) => <IntelCardSkeleton key={i} />)}
+        {!isLoading && (generating || ingesting) &&
+          Array.from({ length: 6 }).map((_, i) => <IntelCardSkeleton key={`opt-${i}`} />)}
         {!isLoading && events.length === 0 && (activeFilterCount > 0 || active.length > 0 || debouncedQuery) && (
           <div className="col-span-full rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
             <Search className="mx-auto h-6 w-6 text-muted-foreground" />
@@ -492,7 +494,7 @@ function FeedPage() {
             </Button>
           </div>
         )}
-        {!isLoading && events.length === 0 && activeFilterCount === 0 && active.length === 0 && !debouncedQuery && (
+        {!isLoading && events.length === 0 && activeFilterCount === 0 && active.length === 0 && !debouncedQuery && !(generating || ingesting) && (
           <div className="col-span-full rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
             <RefreshCw className="mx-auto h-6 w-6 text-muted-foreground" />
             <p className="mt-3 text-sm text-muted-foreground">
@@ -510,7 +512,28 @@ function FeedPage() {
             initialVote={(voteMap[e.id] as 1 | -1 | 0) ?? 0}
           />
         ))}
+        {isFetchingNextPage &&
+          Array.from({ length: 3 }).map((_, i) => <IntelCardSkeleton key={`np-${i}`} />)}
       </div>
+
+      {hasNextPage && (
+        <div ref={sentinelRef} className="mt-6 flex justify-center py-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+            Load more
+          </Button>
+        </div>
+      )}
+      {!hasNextPage && events.length > 0 && (
+        <div className="mt-6 text-center text-xs text-muted-foreground">
+          You're all caught up.
+        </div>
+      )}
     </div>
   );
 }
