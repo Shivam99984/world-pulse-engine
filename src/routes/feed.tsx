@@ -314,6 +314,16 @@ function FeedPage() {
             status={rtStatus}
             onChange={chooseTransport}
           />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleAutoIngest}
+            className="gap-1.5"
+            title={autoIngest ? "Auto-ingest is on (every 5 min)" : "Auto-ingest is off"}
+          >
+            {autoIngest ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            <span className="text-xs">Auto {autoIngest ? "on" : "off"}</span>
+          </Button>
           <Button onClick={onIngest} disabled={ingesting} variant="outline">
             {ingesting ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
