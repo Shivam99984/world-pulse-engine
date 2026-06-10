@@ -279,6 +279,31 @@ export function IntelCard({
               className={cn("h-3.5 w-3.5", saved ? "fill-primary text-primary" : "")}
             />
           </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label="Share"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="rounded-md p-1.5 transition-colors hover:bg-secondary"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={copyLink}>
+                <Link2 className="mr-2 h-3.5 w-3.5" /> Copy link
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => shareTo(e, "x")}>
+                <Share2 className="mr-2 h-3.5 w-3.5" /> Share on X
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => shareTo(e, "linkedin")}>
+                <Share2 className="mr-2 h-3.5 w-3.5" /> Share on LinkedIn
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Link
             to="/event/$id"
             params={{ id: event.id }}
