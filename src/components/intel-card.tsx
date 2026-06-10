@@ -67,6 +67,9 @@ function useNow(intervalMs = 30_000) {
     return () => clearInterval(id);
   }, [intervalMs]);
   return now;
+}
+
+
 
 async function requireAuth(router: ReturnType<typeof useRouter>) {
   const { data } = await supabase.auth.getSession();
