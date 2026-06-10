@@ -158,11 +158,16 @@ function FeedPage() {
     autoFallback: true,
     onInsert: (newEvent) => {
       let prepended = false;
-      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-        if (!old?.events) return old;
-        if (old.events.some((e) => e.id === newEvent.id)) return old;
+      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
+        if (!old || !old.pages?.length) return old;
+        const exists = old.pages.some((p) => p.events.some((e) => e.id === newEvent.id));
+        if (exists) return old;
         prepended = true;
-        return { ...old, events: [newEvent, ...old.events].slice(0, 120) };
+        const [first, ...rest] = old.pages;
+        return {
+          ...old,
+          pages: [{ ...first, events: [newEvent as IntelEvent, ...first.events] }, ...rest],
+        };
       });
       if (prepended) {
         setPending((n) => n + 1);
@@ -170,18 +175,27 @@ function FeedPage() {
       }
     },
     onUpdate: (updated) => {
-      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-        if (!old?.events) return old;
+      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
+        if (!old) return old;
         return {
           ...old,
-          events: old.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
+          pages: old.pages.map((p) => ({
+            ...p,
+            events: p.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
+          })),
         };
       });
     },
     onDelete: (removedId) => {
-      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-        if (!old?.events) return old;
-        return { ...old, events: old.events.filter((e) => e.id !== removedId) };
+      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((p) => ({
+            ...p,
+            events: p.events.filter((e) => e.id !== removedId),
+          })),
+        };
       });
     },
   });
