@@ -63,6 +63,19 @@ function FeedPage() {
     setTransport(t);
     setStoredTransport(t);
   }
+  const [autoIngest, setAutoIngest] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("geopulse.feed.autoIngest") === "1";
+  });
+  function toggleAutoIngest() {
+    setAutoIngest((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem("geopulse.feed.autoIngest", next ? "1" : "0");
+      } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   // Debounce search input
   useEffect(() => {
@@ -70,21 +83,29 @@ function FeedPage() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const { data, isLoading } = useQuery({
+  type EventsPage = { events: IntelEvent[]; nextCursor: string | null };
+  const PAGE_SIZE = 30;
+  const infiniteQuery = useInfiniteQuery<EventsPage>({
     queryKey: ["events", active, debouncedQuery, countries, industries],
-    queryFn: () =>
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
       list({
         data: {
           topics: active.length ? active : undefined,
           query: debouncedQuery || undefined,
           countries: countries.length ? countries : undefined,
           industries: industries.length ? industries : undefined,
-          limit: 60,
+          limit: PAGE_SIZE,
+          cursor: pageParam as string | undefined,
         },
-      }),
+      }) as Promise<EventsPage>,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = infiniteQuery;
 
-  const allEvents = (data?.events ?? []) as IntelEvent[];
+  const allEvents = useMemo<IntelEvent[]>(() => {
+    return (data?.pages ?? []).flatMap((p) => p.events);
+  }, [data]);
 
   const { data: facets } = useQuery({
     queryKey: ["event-facets"],
