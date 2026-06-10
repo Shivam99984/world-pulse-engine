@@ -185,9 +185,20 @@ export function IntelCard({
             </span>
           )}
         </div>
-        <span className={cn("flex items-center gap-1 text-xs font-medium", risk.color)}>
-          <span className={cn("h-1.5 w-1.5 rounded-full", risk.dot)} />
-          Risk {event.risk_score}
+        <span className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full border border-border bg-background/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground",
+              fresh.fresh && "border-success/40 text-success",
+            )}
+            title={new Date(event.created_at).toLocaleString()}
+          >
+            <Clock className={cn("h-3 w-3", fresh.fresh && "animate-pulse")} /> {fresh.label}
+          </span>
+          <span className={cn("flex items-center gap-1 text-xs font-medium", risk.color)}>
+            <span className={cn("h-1.5 w-1.5 rounded-full", risk.dot)} />
+            Risk {event.risk_score}
+          </span>
         </span>
       </div>
 
