@@ -246,6 +246,55 @@ function FeedPage() {
     }
   }
 
+  // Silent background auto-ingest (every 5 min, defaults off; toggleable).
+  // Spaced at 5min to respect free-tier rate limits and avoid duplicate alerts;
+  // realtime channel still surfaces new rows the instant they land.
+  const ingestingRef = useRef(false);
+  useEffect(() => {
+    ingestingRef.current = ingesting;
+  }, [ingesting]);
+  useEffect(() => {
+    if (!autoIngest) return;
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled || ingestingRef.current || document.hidden) return;
+      try {
+        await ingest();
+        qc.invalidateQueries({ queryKey: ["event-facets"] });
+      } catch {
+        /* silent — the manual button surfaces errors */
+      }
+    };
+    // First tick after 60s so it doesn't pile onto initial load
+    const first = setTimeout(tick, 60_000);
+    const id = setInterval(tick, 5 * 60_000);
+    return () => {
+      cancelled = true;
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, [autoIngest, ingest, qc]);
+
+  // Infinite scroll sentinel
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) loadMore();
+      },
+      { rootMargin: "600px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [loadMore]);
+
+
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <LiveTicker className="mb-6 -mx-4 sm:-mx-6" />
