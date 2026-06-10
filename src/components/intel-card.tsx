@@ -48,6 +48,26 @@ function riskTone(score: number) {
   return { label: "Low", color: "text-success", dot: "bg-success" };
 }
 
+function timeAgo(iso: string): { label: string; fresh: boolean } {
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.max(0, Math.floor(diff / 1000));
+  if (s < 60) return { label: `${s}s ago`, fresh: true };
+  const m = Math.floor(s / 60);
+  if (m < 60) return { label: `${m}m ago`, fresh: m < 5 };
+  const h = Math.floor(m / 60);
+  if (h < 24) return { label: `${h}h ago`, fresh: false };
+  const d = Math.floor(h / 24);
+  return { label: `${d}d ago`, fresh: false };
+}
+
+function useNow(intervalMs = 30_000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+
 async function requireAuth(router: ReturnType<typeof useRouter>) {
   const { data } = await supabase.auth.getSession();
   if (!data.session) {
