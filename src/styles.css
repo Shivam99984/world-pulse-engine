@@ -247,6 +247,13 @@
   animation: marquee 45s linear infinite;
   will-change: transform;
 }
-.animate-marquee:hover {
+.animate-marquee:hover,
+.animate-marquee:focus-within {
   animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+    transform: none;
+  }
 }

@@ -1,8 +1,8 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, RadioTower, Radio, RefreshCw, Search, SlidersHorizontal, Sparkles, Wifi, X } from "lucide-react";
+import { Loader2, Pause, Play, RadioTower, Radio, RefreshCw, Search, SlidersHorizontal, Sparkles, Wifi, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
@@ -63,6 +63,19 @@ function FeedPage() {
     setTransport(t);
     setStoredTransport(t);
   }
+  const [autoIngest, setAutoIngest] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("geopulse.feed.autoIngest") === "1";
+  });
+  function toggleAutoIngest() {
+    setAutoIngest((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem("geopulse.feed.autoIngest", next ? "1" : "0");
+      } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   // Debounce search input
   useEffect(() => {
@@ -70,21 +83,29 @@ function FeedPage() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const { data, isLoading } = useQuery({
+  type EventsPage = { events: IntelEvent[]; nextCursor: string | null };
+  const PAGE_SIZE = 30;
+  const infiniteQuery = useInfiniteQuery<EventsPage>({
     queryKey: ["events", active, debouncedQuery, countries, industries],
-    queryFn: () =>
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
       list({
         data: {
           topics: active.length ? active : undefined,
           query: debouncedQuery || undefined,
           countries: countries.length ? countries : undefined,
           industries: industries.length ? industries : undefined,
-          limit: 60,
+          limit: PAGE_SIZE,
+          cursor: pageParam as string | undefined,
         },
-      }),
+      }) as Promise<EventsPage>,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = infiniteQuery;
 
-  const allEvents = (data?.events ?? []) as IntelEvent[];
+  const allEvents = useMemo<IntelEvent[]>(() => {
+    return (data?.pages ?? []).flatMap((p) => p.events);
+  }, [data]);
 
   const { data: facets } = useQuery({
     queryKey: ["event-facets"],
@@ -137,11 +158,16 @@ function FeedPage() {
     autoFallback: true,
     onInsert: (newEvent) => {
       let prepended = false;
-      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-        if (!old?.events) return old;
-        if (old.events.some((e) => e.id === newEvent.id)) return old;
+      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
+        if (!old || !old.pages?.length) return old;
+        const exists = old.pages.some((p) => p.events.some((e) => e.id === newEvent.id));
+        if (exists) return old;
         prepended = true;
-        return { ...old, events: [newEvent, ...old.events].slice(0, 120) };
+        const [first, ...rest] = old.pages;
+        return {
+          ...old,
+          pages: [{ ...first, events: [newEvent as IntelEvent, ...first.events] }, ...rest],
+        };
       });
       if (prepended) {
         setPending((n) => n + 1);
@@ -149,18 +175,27 @@ function FeedPage() {
       }
     },
     onUpdate: (updated) => {
-      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-        if (!old?.events) return old;
+      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
+        if (!old) return old;
         return {
           ...old,
-          events: old.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
+          pages: old.pages.map((p) => ({
+            ...p,
+            events: p.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
+          })),
         };
       });
     },
     onDelete: (removedId) => {
-      qc.setQueriesData<{ events: IntelEvent[] }>({ queryKey: ["events"] }, (old) => {
-        if (!old?.events) return old;
-        return { ...old, events: old.events.filter((e) => e.id !== removedId) };
+      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((p) => ({
+            ...p,
+            events: p.events.filter((e) => e.id !== removedId),
+          })),
+        };
       });
     },
   });
@@ -211,6 +246,55 @@ function FeedPage() {
     }
   }
 
+  // Silent background auto-ingest (every 5 min, defaults off; toggleable).
+  // Spaced at 5min to respect free-tier rate limits and avoid duplicate alerts;
+  // realtime channel still surfaces new rows the instant they land.
+  const ingestingRef = useRef(false);
+  useEffect(() => {
+    ingestingRef.current = ingesting;
+  }, [ingesting]);
+  useEffect(() => {
+    if (!autoIngest) return;
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled || ingestingRef.current || document.hidden) return;
+      try {
+        await ingest();
+        qc.invalidateQueries({ queryKey: ["event-facets"] });
+      } catch {
+        /* silent — the manual button surfaces errors */
+      }
+    };
+    // First tick after 60s so it doesn't pile onto initial load
+    const first = setTimeout(tick, 60_000);
+    const id = setInterval(tick, 5 * 60_000);
+    return () => {
+      cancelled = true;
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, [autoIngest, ingest, qc]);
+
+  // Infinite scroll sentinel
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) loadMore();
+      },
+      { rootMargin: "600px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [loadMore]);
+
+
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <LiveTicker className="mb-6 -mx-4 sm:-mx-6" />
@@ -230,6 +314,16 @@ function FeedPage() {
             status={rtStatus}
             onChange={chooseTransport}
           />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleAutoIngest}
+            className="gap-1.5"
+            title={autoIngest ? "Auto-ingest is on (every 5 min)" : "Auto-ingest is off"}
+          >
+            {autoIngest ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            <span className="text-xs">Auto {autoIngest ? "on" : "off"}</span>
+          </Button>
           <Button onClick={onIngest} disabled={ingesting} variant="outline">
             {ingesting ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -381,6 +475,8 @@ function FeedPage() {
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {isLoading &&
           Array.from({ length: 9 }).map((_, i) => <IntelCardSkeleton key={i} />)}
+        {!isLoading && (generating || ingesting) &&
+          Array.from({ length: 6 }).map((_, i) => <IntelCardSkeleton key={`opt-${i}`} />)}
         {!isLoading && events.length === 0 && (activeFilterCount > 0 || active.length > 0 || debouncedQuery) && (
           <div className="col-span-full rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
             <Search className="mx-auto h-6 w-6 text-muted-foreground" />
@@ -398,7 +494,7 @@ function FeedPage() {
             </Button>
           </div>
         )}
-        {!isLoading && events.length === 0 && activeFilterCount === 0 && active.length === 0 && !debouncedQuery && (
+        {!isLoading && events.length === 0 && activeFilterCount === 0 && active.length === 0 && !debouncedQuery && !(generating || ingesting) && (
           <div className="col-span-full rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
             <RefreshCw className="mx-auto h-6 w-6 text-muted-foreground" />
             <p className="mt-3 text-sm text-muted-foreground">
@@ -416,7 +512,28 @@ function FeedPage() {
             initialVote={(voteMap[e.id] as 1 | -1 | 0) ?? 0}
           />
         ))}
+        {isFetchingNextPage &&
+          Array.from({ length: 3 }).map((_, i) => <IntelCardSkeleton key={`np-${i}`} />)}
       </div>
+
+      {hasNextPage && (
+        <div ref={sentinelRef} className="mt-6 flex justify-center py-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+            Load more
+          </Button>
+        </div>
+      )}
+      {!hasNextPage && events.length > 0 && (
+        <div className="mt-6 text-center text-xs text-muted-foreground">
+          You're all caught up.
+        </div>
+      )}
     </div>
   );
 }

@@ -34,6 +34,7 @@ export const listEvents = createServerFn({ method: "GET" })
       query?: string;
       countries?: string[];
       industries?: string[];
+      cursor?: string; // ISO created_at; return rows strictly older
     } | undefined) => input ?? {},
   )
   .handler(async ({ data }) => {
@@ -43,24 +44,21 @@ export const listEvents = createServerFn({ method: "GET" })
       .select("*")
       .order("created_at", { ascending: false })
       .limit(limit);
-    if (data.topics && data.topics.length > 0) {
-      q = q.in("category", data.topics);
-    }
-    if (data.countries && data.countries.length > 0) {
-      q = q.overlaps("countries", data.countries);
-    }
-    if (data.industries && data.industries.length > 0) {
-      q = q.overlaps("industries", data.industries);
-    }
+    if (data.cursor) q = q.lt("created_at", data.cursor);
+    if (data.topics && data.topics.length > 0) q = q.in("category", data.topics);
+    if (data.countries && data.countries.length > 0) q = q.overlaps("countries", data.countries);
+    if (data.industries && data.industries.length > 0) q = q.overlaps("industries", data.industries);
     const term = (data.query ?? "").trim();
     if (term) {
-      // Escape PostgREST `or` filter separators
       const esc = term.replace(/[,()]/g, " ").trim();
       q = q.or(`headline.ilike.%${esc}%,summary.ilike.%${esc}%`);
     }
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
-    return { events: rows ?? [] };
+    const events = rows ?? [];
+    const nextCursor =
+      events.length === limit ? (events[events.length - 1].created_at as string) : null;
+    return { events, nextCursor };
   });
 
 // Distinct country/industry facets aggregated across recent events.

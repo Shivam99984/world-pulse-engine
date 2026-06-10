@@ -1,13 +1,16 @@
 import { motion } from "framer-motion";
 import { Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
   Bookmark,
+  Clock,
   Flame,
   Globe2,
+  Link2,
+  Share2,
   ThumbsDown,
   ThumbsUp,
   TrendingDown,
@@ -17,6 +20,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { castVote, toggleSave } from "@/lib/events.functions";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export type IntelEvent = {
   id: string;
@@ -38,6 +47,29 @@ function riskTone(score: number) {
   if (score >= 40) return { label: "Elevated", color: "text-warning", dot: "bg-warning" };
   return { label: "Low", color: "text-success", dot: "bg-success" };
 }
+
+function timeAgo(iso: string): { label: string; fresh: boolean } {
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.max(0, Math.floor(diff / 1000));
+  if (s < 60) return { label: `${s}s ago`, fresh: true };
+  const m = Math.floor(s / 60);
+  if (m < 60) return { label: `${m}m ago`, fresh: m < 5 };
+  const h = Math.floor(m / 60);
+  if (h < 24) return { label: `${h}h ago`, fresh: false };
+  const d = Math.floor(h / 24);
+  return { label: `${d}d ago`, fresh: false };
+}
+
+function useNow(intervalMs = 30_000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+
 
 async function requireAuth(router: ReturnType<typeof useRouter>) {
   const { data } = await supabase.auth.getSession();
@@ -68,6 +100,34 @@ export function IntelCard({
   const [saved, setSaved] = useState(initialSaved);
   const [voted, setVoted] = useState<1 | -1 | 0>(initialVote);
   const [pending, setPending] = useState(false);
+  const now = useNow(30_000);
+  const fresh = timeAgo(event.created_at);
+  // Recompute label using `now` to trigger re-render
+  void now;
+  const shareUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/event/${event.id}` : `/event/${event.id}`;
+  const shareText = event.headline;
+  async function copyLink(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Couldn't copy link");
+    }
+  }
+  function shareTo(e: React.MouseEvent, target: "x" | "linkedin") {
+    e.preventDefault();
+    e.stopPropagation();
+    const u = encodeURIComponent(shareUrl);
+    const t = encodeURIComponent(shareText);
+    const href =
+      target === "x"
+        ? `https://twitter.com/intent/tweet?url=${u}&text=${t}`
+        : `https://www.linkedin.com/sharing/share-offsite/?url=${u}`;
+    window.open(href, "_blank", "noopener,noreferrer");
+  }
 
   async function onSave(e: React.MouseEvent) {
     e.preventDefault();
@@ -125,9 +185,20 @@ export function IntelCard({
             </span>
           )}
         </div>
-        <span className={cn("flex items-center gap-1 text-xs font-medium", risk.color)}>
-          <span className={cn("h-1.5 w-1.5 rounded-full", risk.dot)} />
-          Risk {event.risk_score}
+        <span className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full border border-border bg-background/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground",
+              fresh.fresh && "border-success/40 text-success",
+            )}
+            title={new Date(event.created_at).toLocaleString()}
+          >
+            <Clock className={cn("h-3 w-3", fresh.fresh && "animate-pulse")} /> {fresh.label}
+          </span>
+          <span className={cn("flex items-center gap-1 text-xs font-medium", risk.color)}>
+            <span className={cn("h-1.5 w-1.5 rounded-full", risk.dot)} />
+            Risk {event.risk_score}
+          </span>
         </span>
       </div>
 
@@ -208,6 +279,31 @@ export function IntelCard({
               className={cn("h-3.5 w-3.5", saved ? "fill-primary text-primary" : "")}
             />
           </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label="Share"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="rounded-md p-1.5 transition-colors hover:bg-secondary"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={copyLink}>
+                <Link2 className="mr-2 h-3.5 w-3.5" /> Copy link
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => shareTo(e, "x")}>
+                <Share2 className="mr-2 h-3.5 w-3.5" /> Share on X
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => shareTo(e, "linkedin")}>
+                <Share2 className="mr-2 h-3.5 w-3.5" /> Share on LinkedIn
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Link
             to="/event/$id"
             params={{ id: event.id }}
