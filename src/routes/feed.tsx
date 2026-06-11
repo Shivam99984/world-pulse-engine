@@ -109,10 +109,22 @@ function FeedPage() {
     return () => clearTimeout(t);
   }, [query]);
 
+  // Personalized interests (only when signed in + toggle on)
+  const { data: interestsData } = useQuery({
+    queryKey: ["my-interests"],
+    queryFn: async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess.session) return { topics: [] as string[] };
+      return interestsFn();
+    },
+    staleTime: 5 * 60_000,
+  });
+  const personalizeTopics = personalize ? interestsData?.topics ?? [] : [];
+
   type EventsPage = { events: IntelEvent[]; nextCursor: string | null };
   const PAGE_SIZE = 30;
   const infiniteQuery = useInfiniteQuery<EventsPage>({
-    queryKey: ["events", active, debouncedQuery, countries, industries],
+    queryKey: ["events", active, debouncedQuery, countries, industries, personalizeTopics],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       list({
@@ -121,6 +133,7 @@ function FeedPage() {
           query: debouncedQuery || undefined,
           countries: countries.length ? countries : undefined,
           industries: industries.length ? industries : undefined,
+          personalizeTopics: personalizeTopics.length ? personalizeTopics : undefined,
           limit: PAGE_SIZE,
           cursor: pageParam as string | undefined,
         },
@@ -140,6 +153,14 @@ function FeedPage() {
   });
   const countryOptions = facets?.countries ?? [];
   const industryOptions = facets?.industries ?? [];
+
+  // Saved-event counts per topic — feeds the "AI · 12" badge on chips
+  const { data: savedCounts } = useQuery({
+    queryKey: ["topic-saved-counts"],
+    queryFn: () => savedCountsFn(),
+    staleTime: 5 * 60_000,
+  });
+  const topicCounts = savedCounts?.counts ?? {};
 
   // Hydrate saved + voted state for the visible cards (auth-gated; silently skips if signed out)
   const eventIds = useMemo(() => allEvents.map((e) => e.id), [allEvents]);
