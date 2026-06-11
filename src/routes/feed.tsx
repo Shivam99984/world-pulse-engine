@@ -10,8 +10,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { IntelCard, IntelCardSkeleton, type IntelEvent } from "@/components/intel-card";
-import { generateEvents, listEventFacets, listEvents, listMyInteractions } from "@/lib/events.functions";
+import { generateEvents, getMyInterests, listEventFacets, listEvents, listMyInteractions } from "@/lib/events.functions";
 import { ingestRealNews } from "@/lib/sources.functions";
+import { logFilterEvent, topicSavedCounts } from "@/lib/feed-analytics.functions";
 import { TOPICS } from "@/lib/topics";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +36,15 @@ export const Route = createFileRoute("/feed")({
         content:
           "Real-time global intelligence feed with AI-powered impact analysis, sentiment, and risk scoring.",
       },
+      { property: "og:title", content: "Live Intelligence Feed — GeoPulse AI" },
+      {
+        property: "og:description",
+        content: "Real-time global events, AI-clustered with risk, sentiment and predicted impact.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:image", content: "/og-feed.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: "/og-feed.jpg" },
     ],
   }),
   component: FeedPage,
