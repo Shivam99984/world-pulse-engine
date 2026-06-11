@@ -23,17 +23,40 @@ function stripHtml(s: string) {
     .trim();
 }
 
-function parseRss(xml: string, max = 8): { title: string; description: string }[] {
-  const items: { title: string; description: string }[] = [];
+function parseRss(xml: string, max = 8): { title: string; description: string; link: string }[] {
+  const items: { title: string; description: string; link: string }[] = [];
   const re = /<item[\s\S]*?>([\s\S]*?)<\/item>/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) && items.length < max) {
     const block = m[1];
     const title = stripHtml(/<title>([\s\S]*?)<\/title>/i.exec(block)?.[1] ?? "");
     const desc = stripHtml(/<description>([\s\S]*?)<\/description>/i.exec(block)?.[1] ?? "");
-    if (title) items.push({ title, description: desc });
+    const link = stripHtml(/<link>([\s\S]*?)<\/link>/i.exec(block)?.[1] ?? "");
+    if (title) items.push({ title, description: desc, link });
   }
   return items;
+}
+
+// GDELT 2.1 free DOC API: high-volume, structured global news with article URLs.
+// https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/  — no key, generous limits.
+async function fetchGdelt(): Promise<{ title: string; description: string; link: string; source: string }[]> {
+  try {
+    const u =
+      "https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang:eng&mode=ArtList&format=json&maxrecords=25&sort=DateDesc";
+    const r = await fetch(u, { headers: { "User-Agent": "GeoPulseAI/1.0" } });
+    if (!r.ok) return [];
+    const j = (await r.json()) as { articles?: Array<{ title?: string; url?: string; domain?: string; seendate?: string }> };
+    return (j.articles ?? [])
+      .filter((a) => a.title && a.url)
+      .map((a) => ({
+        title: stripHtml(a.title!).slice(0, 240),
+        description: "",
+        link: a.url!,
+        source: a.domain ?? "GDELT",
+      }));
+  } catch {
+    return [];
+  }
 }
 
 const EnrichedSchema = z.object({
