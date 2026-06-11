@@ -446,6 +446,7 @@ function FeedPage() {
         </button>
         {TOPICS.map((t) => {
           const on = active.includes(t);
+          const count = topicCounts[t] ?? 0;
           return (
             <button
               key={t}
@@ -453,13 +454,24 @@ function FeedPage() {
                 setActive((prev) => (on ? prev.filter((x) => x !== t) : [...prev, t]))
               }
               className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                 on
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-card text-muted-foreground hover:text-foreground",
               )}
             >
               {t}
+              {count > 0 && (
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 text-[10px] font-semibold",
+                    on ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground",
+                  )}
+                  title={`${count} saved by users`}
+                >
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}
