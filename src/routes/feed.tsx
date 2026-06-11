@@ -63,8 +63,24 @@ function FeedPage() {
   const list = useServerFn(listEvents);
   const facetsFn = useServerFn(listEventFacets);
   const interactionsFn = useServerFn(listMyInteractions);
+  const interestsFn = useServerFn(getMyInterests);
+  const savedCountsFn = useServerFn(topicSavedCounts);
+  const logFilter = useServerFn(logFilterEvent);
   const generate = useServerFn(generateEvents);
   const ingest = useServerFn(ingestRealNews);
+  const [personalize, setPersonalize] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("geopulse.feed.personalize") === "1";
+  });
+  function togglePersonalize() {
+    setPersonalize((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem("geopulse.feed.personalize", next ? "1" : "0");
+      } catch { /* ignore */ }
+      return next;
+    });
+  }
   const [generating, setGenerating] = useState(false);
   const [ingesting, setIngesting] = useState(false);
   const [pending, setPending] = useState(0);
