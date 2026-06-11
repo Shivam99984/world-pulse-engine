@@ -23,17 +23,40 @@ function stripHtml(s: string) {
     .trim();
 }
 
-function parseRss(xml: string, max = 8): { title: string; description: string }[] {
-  const items: { title: string; description: string }[] = [];
+function parseRss(xml: string, max = 8): { title: string; description: string; link: string }[] {
+  const items: { title: string; description: string; link: string }[] = [];
   const re = /<item[\s\S]*?>([\s\S]*?)<\/item>/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) && items.length < max) {
     const block = m[1];
     const title = stripHtml(/<title>([\s\S]*?)<\/title>/i.exec(block)?.[1] ?? "");
     const desc = stripHtml(/<description>([\s\S]*?)<\/description>/i.exec(block)?.[1] ?? "");
-    if (title) items.push({ title, description: desc });
+    const link = stripHtml(/<link>([\s\S]*?)<\/link>/i.exec(block)?.[1] ?? "");
+    if (title) items.push({ title, description: desc, link });
   }
   return items;
+}
+
+// GDELT 2.1 free DOC API: high-volume, structured global news with article URLs.
+// https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/  — no key, generous limits.
+async function fetchGdelt(): Promise<{ title: string; description: string; link: string; source: string }[]> {
+  try {
+    const u =
+      "https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang:eng&mode=ArtList&format=json&maxrecords=25&sort=DateDesc";
+    const r = await fetch(u, { headers: { "User-Agent": "GeoPulseAI/1.0" } });
+    if (!r.ok) return [];
+    const j = (await r.json()) as { articles?: Array<{ title?: string; url?: string; domain?: string; seendate?: string }> };
+    return (j.articles ?? [])
+      .filter((a) => a.title && a.url)
+      .map((a) => ({
+        title: stripHtml(a.title!).slice(0, 240),
+        description: "",
+        link: a.url!,
+        source: a.domain ?? "GDELT",
+      }));
+  } catch {
+    return [];
+  }
 }
 
 const EnrichedSchema = z.object({
@@ -57,7 +80,7 @@ const EnrichedSchema = z.object({
 });
 
 export const ingestRealNews = createServerFn({ method: "POST" }).handler(async () => {
-  const collected: { title: string; description: string; source: string }[] = [];
+  const collected: { title: string; description: string; source: string; link: string }[] = [];
   await Promise.all(
     FEEDS.map(async (f) => {
       try {
@@ -72,6 +95,10 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
       }
     }),
   );
+
+  // Add GDELT articles (free, structured, with URLs)
+  const gdelt = await fetchGdelt();
+  collected.push(...gdelt);
 
   if (collected.length === 0) {
     throw new Error("No real-world headlines could be fetched right now.");
@@ -137,6 +164,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     countries: string[];
     industries: string[];
     sources: string[];
+    source_urls: string[];
     breaking: boolean;
   };
   const fallbackRows: Row[] = fresh.slice(0, 12).map((c) => {
@@ -152,9 +180,14 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
       countries: [],
       industries: [],
       sources: [c.source],
+      source_urls: c.link ? [c.link] : [],
       breaking: false,
     };
   });
+
+  // Map headline -> original URL so AI-enriched rows keep deep links
+  const linkByTitle = new Map<string, string>();
+  for (const c of fresh) if (c.link) linkByTitle.set(c.title.toLowerCase().trim(), c.link);
 
   let rows: Row[] = [];
   const key = process.env.GROQ_API_KEY;
@@ -174,18 +207,22 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
         prompt: `Enrich these ${fresh.length} real headlines into structured GeoPulse events. Use the original outlet as the source. Preserve the original headline.\n\n${headlinesText}`,
       });
 
-      rows = output.events.map((e) => ({
-        headline: e.headline,
-        summary: e.summary,
-        category: e.category,
-        sentiment: Math.max(-1, Math.min(1, e.sentiment)),
-        risk_score: Math.round(Math.max(0, Math.min(100, e.risk_score))),
-        confidence: Math.round(Math.max(0, Math.min(100, e.confidence))),
-        countries: e.countries,
-        industries: e.industries,
-        sources: e.sources,
-        breaking: e.breaking,
-      }));
+      rows = output.events.map((e) => {
+        const link = linkByTitle.get(e.headline.toLowerCase().trim()) ?? "";
+        return {
+          headline: e.headline,
+          summary: e.summary,
+          category: e.category,
+          sentiment: Math.max(-1, Math.min(1, e.sentiment)),
+          risk_score: Math.round(Math.max(0, Math.min(100, e.risk_score))),
+          confidence: Math.round(Math.max(0, Math.min(100, e.confidence))),
+          countries: e.countries,
+          industries: e.industries,
+          sources: e.sources,
+          source_urls: link ? [link] : [],
+          breaking: e.breaking,
+        };
+      });
     } catch (err) {
       console.warn("AI enrichment unavailable, using raw RSS fallback:", (err as Error).message);
     }
@@ -202,5 +239,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     fetched: collected.length,
     ai_enriched: aiEnriched,
     deduped: collected.length - fresh.length > 0,
+    gdelt: gdelt.length,
   };
 });
+

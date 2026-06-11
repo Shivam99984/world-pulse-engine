@@ -38,6 +38,7 @@ export type IntelEvent = {
   countries: string[];
   industries: string[];
   sources: string[];
+  source_urls?: string[];
   breaking: boolean;
   created_at: string;
 };
@@ -292,7 +293,7 @@ export function IntelCard({
                 <Share2 className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onClick={copyLink}>
                 <Link2 className="mr-2 h-3.5 w-3.5" /> Copy link
               </DropdownMenuItem>
@@ -302,6 +303,17 @@ export function IntelCard({
               <DropdownMenuItem onClick={(e) => shareTo(e, "linkedin")}>
                 <Share2 className="mr-2 h-3.5 w-3.5" /> Share on LinkedIn
               </DropdownMenuItem>
+              {event.source_urls && event.source_urls[0] && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(event.source_urls![0], "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  <ArrowUpRight className="mr-2 h-3.5 w-3.5" /> Open original
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           <Link

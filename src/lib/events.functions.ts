@@ -35,6 +35,7 @@ export const listEvents = createServerFn({ method: "GET" })
       countries?: string[];
       industries?: string[];
       cursor?: string; // ISO created_at; return rows strictly older
+      personalizeTopics?: string[]; // soft re-rank: events in these categories float to top of the page
     } | undefined) => input ?? {},
   )
   .handler(async ({ data }) => {
@@ -55,7 +56,15 @@ export const listEvents = createServerFn({ method: "GET" })
     }
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
-    const events = rows ?? [];
+    let events = rows ?? [];
+    // Personalized soft-rank: stable sort by (matchesInterest desc, original recency)
+    if (data.personalizeTopics && data.personalizeTopics.length > 0) {
+      const set = new Set(data.personalizeTopics);
+      events = events
+        .map((e, i) => ({ e, i, hit: set.has((e as { category: string }).category) ? 1 : 0 }))
+        .sort((a, b) => b.hit - a.hit || a.i - b.i)
+        .map(({ e }) => e);
+    }
     const nextCursor =
       events.length === limit ? (events[events.length - 1].created_at as string) : null;
     return { events, nextCursor };

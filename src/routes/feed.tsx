@@ -10,8 +10,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { IntelCard, IntelCardSkeleton, type IntelEvent } from "@/components/intel-card";
-import { generateEvents, listEventFacets, listEvents, listMyInteractions } from "@/lib/events.functions";
+import { generateEvents, getMyInterests, listEventFacets, listEvents, listMyInteractions } from "@/lib/events.functions";
 import { ingestRealNews } from "@/lib/sources.functions";
+import { logFilterEvent, topicSavedCounts } from "@/lib/feed-analytics.functions";
 import { TOPICS } from "@/lib/topics";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +36,15 @@ export const Route = createFileRoute("/feed")({
         content:
           "Real-time global intelligence feed with AI-powered impact analysis, sentiment, and risk scoring.",
       },
+      { property: "og:title", content: "Live Intelligence Feed — GeoPulse AI" },
+      {
+        property: "og:description",
+        content: "Real-time global events, AI-clustered with risk, sentiment and predicted impact.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:image", content: "/og-feed.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: "/og-feed.jpg" },
     ],
   }),
   component: FeedPage,
@@ -53,8 +63,24 @@ function FeedPage() {
   const list = useServerFn(listEvents);
   const facetsFn = useServerFn(listEventFacets);
   const interactionsFn = useServerFn(listMyInteractions);
+  const interestsFn = useServerFn(getMyInterests);
+  const savedCountsFn = useServerFn(topicSavedCounts);
+  const logFilter = useServerFn(logFilterEvent);
   const generate = useServerFn(generateEvents);
   const ingest = useServerFn(ingestRealNews);
+  const [personalize, setPersonalize] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("geopulse.feed.personalize") === "1";
+  });
+  function togglePersonalize() {
+    setPersonalize((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem("geopulse.feed.personalize", next ? "1" : "0");
+      } catch { /* ignore */ }
+      return next;
+    });
+  }
   const [generating, setGenerating] = useState(false);
   const [ingesting, setIngesting] = useState(false);
   const [pending, setPending] = useState(0);
@@ -83,10 +109,22 @@ function FeedPage() {
     return () => clearTimeout(t);
   }, [query]);
 
+  // Personalized interests (only when signed in + toggle on)
+  const { data: interestsData } = useQuery({
+    queryKey: ["my-interests"],
+    queryFn: async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess.session) return { topics: [] as string[] };
+      return interestsFn();
+    },
+    staleTime: 5 * 60_000,
+  });
+  const personalizeTopics = personalize ? interestsData?.topics ?? [] : [];
+
   type EventsPage = { events: IntelEvent[]; nextCursor: string | null };
   const PAGE_SIZE = 30;
   const infiniteQuery = useInfiniteQuery<EventsPage>({
-    queryKey: ["events", active, debouncedQuery, countries, industries],
+    queryKey: ["events", active, debouncedQuery, countries, industries, personalizeTopics],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       list({
@@ -95,6 +133,7 @@ function FeedPage() {
           query: debouncedQuery || undefined,
           countries: countries.length ? countries : undefined,
           industries: industries.length ? industries : undefined,
+          personalizeTopics: personalizeTopics.length ? personalizeTopics : undefined,
           limit: PAGE_SIZE,
           cursor: pageParam as string | undefined,
         },
@@ -114,6 +153,14 @@ function FeedPage() {
   });
   const countryOptions = facets?.countries ?? [];
   const industryOptions = facets?.industries ?? [];
+
+  // Saved-event counts per topic — feeds the "AI · 12" badge on chips
+  const { data: savedCounts } = useQuery({
+    queryKey: ["topic-saved-counts"],
+    queryFn: () => savedCountsFn(),
+    staleTime: 5 * 60_000,
+  });
+  const topicCounts = savedCounts?.counts ?? {};
 
   // Hydrate saved + voted state for the visible cards (auth-gated; silently skips if signed out)
   const eventIds = useMemo(() => allEvents.map((e) => e.id), [allEvents]);
@@ -152,6 +199,30 @@ function FeedPage() {
     setRisk([0, 100]);
     setConfidence([0, 100]);
   }
+
+  // Filter analytics — debounced, fire-and-forget. Skipped when nothing is filtered.
+  useEffect(() => {
+    const hasFilter =
+      active.length > 0 ||
+      countries.length > 0 ||
+      industries.length > 0 ||
+      debouncedQuery.length > 0;
+    if (!hasFilter) return;
+    const t = setTimeout(() => {
+      logFilter({
+        data: {
+          topics: active,
+          countries,
+          industries,
+          query: debouncedQuery || undefined,
+          result_count: events.length,
+        },
+      }).catch(() => { /* analytics is non-critical */ });
+    }, 800);
+    return () => clearTimeout(t);
+    // events.length intentionally excluded so we don't log on every realtime insert
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, countries, industries, debouncedQuery]);
 
   const { status: rtStatus, activeTransport } = useRealtimeEvents({
     transport,
@@ -317,6 +388,20 @@ function FeedPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={togglePersonalize}
+            className="gap-1.5"
+            title={
+              personalize
+                ? `Personalized: matches in ${(interestsData?.topics ?? []).length || "your"} interests float to the top`
+                : "Personalize the feed by your interests"
+            }
+          >
+            <Sparkles className={cn("h-3.5 w-3.5", personalize && "text-primary")} />
+            <span className="text-xs">For you {personalize ? "on" : "off"}</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={toggleAutoIngest}
             className="gap-1.5"
             title={autoIngest ? "Auto-ingest is on (every 5 min)" : "Auto-ingest is off"}
@@ -375,6 +460,7 @@ function FeedPage() {
         </button>
         {TOPICS.map((t) => {
           const on = active.includes(t);
+          const count = topicCounts[t] ?? 0;
           return (
             <button
               key={t}
@@ -382,13 +468,24 @@ function FeedPage() {
                 setActive((prev) => (on ? prev.filter((x) => x !== t) : [...prev, t]))
               }
               className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                 on
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-card text-muted-foreground hover:text-foreground",
               )}
             >
               {t}
+              {count > 0 && (
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 text-[10px] font-semibold",
+                    on ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground",
+                  )}
+                  title={`${count} saved by users`}
+                >
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}

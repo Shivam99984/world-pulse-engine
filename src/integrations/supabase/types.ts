@@ -186,6 +186,7 @@ export type Database = {
           industries: string[]
           risk_score: number
           sentiment: number
+          source_urls: string[]
           sources: string[]
           summary: string
         }
@@ -200,6 +201,7 @@ export type Database = {
           industries?: string[]
           risk_score?: number
           sentiment?: number
+          source_urls?: string[]
           sources?: string[]
           summary: string
         }
@@ -214,8 +216,42 @@ export type Database = {
           industries?: string[]
           risk_score?: number
           sentiment?: number
+          source_urls?: string[]
           sources?: string[]
           summary?: string
+        }
+        Relationships: []
+      }
+      feed_filter_events: {
+        Row: {
+          countries: string[]
+          created_at: string
+          id: string
+          industries: string[]
+          query: string | null
+          result_count: number | null
+          topics: string[]
+          user_id: string | null
+        }
+        Insert: {
+          countries?: string[]
+          created_at?: string
+          id?: string
+          industries?: string[]
+          query?: string | null
+          result_count?: number | null
+          topics?: string[]
+          user_id?: string | null
+        }
+        Update: {
+          countries?: string[]
+          created_at?: string
+          id?: string
+          industries?: string[]
+          query?: string | null
+          result_count?: number | null
+          topics?: string[]
+          user_id?: string | null
         }
         Relationships: []
       }
