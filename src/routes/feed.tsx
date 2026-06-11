@@ -200,6 +200,30 @@ function FeedPage() {
     setConfidence([0, 100]);
   }
 
+  // Filter analytics — debounced, fire-and-forget. Skipped when nothing is filtered.
+  useEffect(() => {
+    const hasFilter =
+      active.length > 0 ||
+      countries.length > 0 ||
+      industries.length > 0 ||
+      debouncedQuery.length > 0;
+    if (!hasFilter) return;
+    const t = setTimeout(() => {
+      logFilter({
+        data: {
+          topics: active,
+          countries,
+          industries,
+          query: debouncedQuery || undefined,
+          result_count: events.length,
+        },
+      }).catch(() => { /* analytics is non-critical */ });
+    }, 800);
+    return () => clearTimeout(t);
+    // events.length intentionally excluded so we don't log on every realtime insert
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, countries, industries, debouncedQuery]);
+
   const { status: rtStatus, activeTransport } = useRealtimeEvents({
     transport,
     autoFallback: true,
