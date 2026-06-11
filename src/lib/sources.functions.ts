@@ -80,7 +80,7 @@ const EnrichedSchema = z.object({
 });
 
 export const ingestRealNews = createServerFn({ method: "POST" }).handler(async () => {
-  const collected: { title: string; description: string; source: string }[] = [];
+  const collected: { title: string; description: string; source: string; link: string }[] = [];
   await Promise.all(
     FEEDS.map(async (f) => {
       try {
@@ -95,6 +95,10 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
       }
     }),
   );
+
+  // Add GDELT articles (free, structured, with URLs)
+  const gdelt = await fetchGdelt();
+  collected.push(...gdelt);
 
   if (collected.length === 0) {
     throw new Error("No real-world headlines could be fetched right now.");
@@ -160,6 +164,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     countries: string[];
     industries: string[];
     sources: string[];
+    source_urls: string[];
     breaking: boolean;
   };
   const fallbackRows: Row[] = fresh.slice(0, 12).map((c) => {
@@ -175,9 +180,14 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
       countries: [],
       industries: [],
       sources: [c.source],
+      source_urls: c.link ? [c.link] : [],
       breaking: false,
     };
   });
+
+  // Map headline -> original URL so AI-enriched rows keep deep links
+  const linkByTitle = new Map<string, string>();
+  for (const c of fresh) if (c.link) linkByTitle.set(c.title.toLowerCase().trim(), c.link);
 
   let rows: Row[] = [];
   const key = process.env.GROQ_API_KEY;
@@ -197,18 +207,22 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
         prompt: `Enrich these ${fresh.length} real headlines into structured GeoPulse events. Use the original outlet as the source. Preserve the original headline.\n\n${headlinesText}`,
       });
 
-      rows = output.events.map((e) => ({
-        headline: e.headline,
-        summary: e.summary,
-        category: e.category,
-        sentiment: Math.max(-1, Math.min(1, e.sentiment)),
-        risk_score: Math.round(Math.max(0, Math.min(100, e.risk_score))),
-        confidence: Math.round(Math.max(0, Math.min(100, e.confidence))),
-        countries: e.countries,
-        industries: e.industries,
-        sources: e.sources,
-        breaking: e.breaking,
-      }));
+      rows = output.events.map((e) => {
+        const link = linkByTitle.get(e.headline.toLowerCase().trim()) ?? "";
+        return {
+          headline: e.headline,
+          summary: e.summary,
+          category: e.category,
+          sentiment: Math.max(-1, Math.min(1, e.sentiment)),
+          risk_score: Math.round(Math.max(0, Math.min(100, e.risk_score))),
+          confidence: Math.round(Math.max(0, Math.min(100, e.confidence))),
+          countries: e.countries,
+          industries: e.industries,
+          sources: e.sources,
+          source_urls: link ? [link] : [],
+          breaking: e.breaking,
+        };
+      });
     } catch (err) {
       console.warn("AI enrichment unavailable, using raw RSS fallback:", (err as Error).message);
     }
@@ -225,5 +239,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     fetched: collected.length,
     ai_enriched: aiEnriched,
     deduped: collected.length - fresh.length > 0,
+    gdelt: gdelt.length,
   };
 });
+
