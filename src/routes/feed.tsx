@@ -388,6 +388,20 @@ function FeedPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={togglePersonalize}
+            className="gap-1.5"
+            title={
+              personalize
+                ? `Personalized: matches in ${(interestsData?.topics ?? []).length || "your"} interests float to the top`
+                : "Personalize the feed by your interests"
+            }
+          >
+            <Sparkles className={cn("h-3.5 w-3.5", personalize && "text-primary")} />
+            <span className="text-xs">For you {personalize ? "on" : "off"}</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={toggleAutoIngest}
             className="gap-1.5"
             title={autoIngest ? "Auto-ingest is on (every 5 min)" : "Auto-ingest is off"}
