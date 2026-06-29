@@ -80,7 +80,7 @@ export const listEventFacets = createServerFn({ method: "GET" }).handler(async (
       .from("events")
       .select("countries")
       .gte("created_at", since)
-      .neq("countries", "{}")
+      .not("countries", "eq", "{}")
       .order("created_at", { ascending: false })
       .limit(2000),
     supabaseAdmin
