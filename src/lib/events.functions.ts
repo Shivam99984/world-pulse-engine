@@ -71,18 +71,32 @@ export const listEvents = createServerFn({ method: "GET" })
   });
 
 // Distinct country/industry facets aggregated across recent events.
+// Pull from rows that actually have non-empty arrays, since many ingested
+// events may lack enrichment.
 export const listEventFacets = createServerFn({ method: "GET" }).handler(async () => {
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabaseAdmin
-    .from("events")
-    .select("countries,industries")
-    .gte("created_at", since)
-    .limit(1000);
-  if (error) throw new Error(error.message);
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const [{ data: cRows }, { data: iRows }] = await Promise.all([
+    supabaseAdmin
+      .from("events")
+      .select("countries")
+      .gte("created_at", since)
+      .not("countries", "eq", "{}")
+      .order("created_at", { ascending: false })
+      .limit(2000),
+    supabaseAdmin
+      .from("events")
+      .select("industries")
+      .gte("created_at", since)
+      .not("industries", "eq", "{}")
+      .order("created_at", { ascending: false })
+      .limit(2000),
+  ]);
   const countries = new Set<string>();
   const industries = new Set<string>();
-  for (const r of data ?? []) {
+  for (const r of cRows ?? []) {
     for (const c of (r.countries as string[]) ?? []) if (c) countries.add(c);
+  }
+  for (const r of iRows ?? []) {
     for (const i of (r.industries as string[]) ?? []) if (i) industries.add(i);
   }
   return {
