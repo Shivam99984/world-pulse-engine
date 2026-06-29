@@ -49,55 +49,68 @@ async function fetchCrypto(): Promise<Quote[]> {
   return out;
 }
 
-async function fetchFx(): Promise<Quote[]> {
-  // Frankfurter is ECB-backed, free, no key
-  const data = await safeJson("https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR,JPY,GBP,CNY");
-  const prev = await safeJson("https://api.frankfurter.dev/v1/2000-01-01..?base=USD&symbols=EUR,JPY,GBP,CNY"); // ignored
-  void prev;
-  if (!data?.rates) return [];
-  // FX doesn't give 24h change from Frankfurter latest; fetch yesterday
-  const y = await safeJson("https://api.frankfurter.dev/v1/2024-01-02?base=USD&symbols=EUR,JPY,GBP,CNY");
-  void y;
-  // Use Yahoo for FX change instead — better signal
-  const yh = await safeJson(
-    "https://query1.finance.yahoo.com/v7/finance/quote?symbols=EURUSD=X,USDJPY=X,GBPUSD=X,USDCNY=X",
+// Yahoo's chart endpoint works without auth/cookies and returns
+// regularMarketPrice + chartPreviousClose, letting us compute 24h change.
+async function fetchYahooChart(yhSymbol: string): Promise<{ price: number; change: number } | null> {
+  const data = await safeJson(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yhSymbol)}?interval=1d&range=5d`,
   );
-  const yhMap: Record<string, number> = {};
-  for (const q of yh?.quoteResponse?.result ?? []) {
-    yhMap[q.symbol] = Number(q.regularMarketChangePercent ?? 0);
-  }
-  return [
-    { symbol: "EURUSD", label: "EUR/USD", category: "fx", price: 1 / Number(data.rates.EUR), change_24h: yhMap["EURUSD=X"] ?? 0 },
-    { symbol: "USDJPY", label: "USD/JPY", category: "fx", price: Number(data.rates.JPY), change_24h: yhMap["USDJPY=X"] ?? 0 },
-    { symbol: "GBPUSD", label: "GBP/USD", category: "fx", price: 1 / Number(data.rates.GBP), change_24h: yhMap["GBPUSD=X"] ?? 0 },
-    { symbol: "USDCNY", label: "USD/CNY", category: "fx", price: Number(data.rates.CNY), change_24h: yhMap["USDCNY=X"] ?? 0 },
+  const meta = data?.chart?.result?.[0]?.meta;
+  if (!meta) return null;
+  const price = Number(meta.regularMarketPrice ?? 0);
+  const prev = Number(meta.chartPreviousClose ?? meta.previousClose ?? 0);
+  if (!price || !prev) return null;
+  return { price, change: ((price - prev) / prev) * 100 };
+}
+
+async function fetchFx(): Promise<Quote[]> {
+  const pairs: { sym: string; label: string; yh: string }[] = [
+    { sym: "EURUSD", label: "EUR/USD", yh: "EURUSD=X" },
+    { sym: "USDJPY", label: "USD/JPY", yh: "USDJPY=X" },
+    { sym: "GBPUSD", label: "GBP/USD", yh: "GBPUSD=X" },
+    { sym: "USDCNY", label: "USD/CNY", yh: "USDCNY=X" },
   ];
+  const results = await Promise.all(pairs.map((p) => fetchYahooChart(p.yh)));
+  const out: Quote[] = [];
+  pairs.forEach((p, i) => {
+    const r = results[i];
+    if (r) out.push({ symbol: p.sym, label: p.label, category: "fx", price: r.price, change_24h: r.change });
+  });
+  // Frankfurter fallback for any missing pair (ECB rates, no change available)
+  if (out.length < pairs.length) {
+    const fr = await safeJson("https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR,JPY,GBP,CNY");
+    if (fr?.rates) {
+      const have = new Set(out.map((q) => q.symbol));
+      const fallback: Record<string, number> = {
+        EURUSD: 1 / Number(fr.rates.EUR),
+        USDJPY: Number(fr.rates.JPY),
+        GBPUSD: 1 / Number(fr.rates.GBP),
+        USDCNY: Number(fr.rates.CNY),
+      };
+      for (const p of pairs) {
+        if (have.has(p.sym)) continue;
+        const price = fallback[p.sym];
+        if (price > 0) out.push({ symbol: p.sym, label: p.label, category: "fx", price, change_24h: 0 });
+      }
+    }
+  }
+  return out;
 }
 
 async function fetchYahoo(): Promise<Quote[]> {
-  const data = await safeJson(
-    "https://query1.finance.yahoo.com/v7/finance/quote?symbols=GC=F,CL=F,^GSPC,^NDX,^VIX",
-  );
-  const rows: any[] = data?.quoteResponse?.result ?? [];
-  const map: Record<string, { sym: string; label: string; cat: Quote["category"] }> = {
-    "GC=F": { sym: "GOLD", label: "Gold", cat: "commodity" },
-    "CL=F": { sym: "OIL", label: "Crude Oil", cat: "commodity" },
-    "^GSPC": { sym: "SPX", label: "S&P 500", cat: "index" },
-    "^NDX": { sym: "NDX", label: "Nasdaq 100", cat: "index" },
-    "^VIX": { sym: "VIX", label: "Volatility", cat: "index" },
-  };
+  const map: { yh: string; sym: string; label: string; cat: Quote["category"] }[] = [
+    { yh: "GC=F", sym: "GOLD", label: "Gold", cat: "commodity" },
+    { yh: "CL=F", sym: "OIL", label: "Crude Oil", cat: "commodity" },
+    { yh: "^GSPC", sym: "SPX", label: "S&P 500", cat: "index" },
+    { yh: "^NDX", sym: "NDX", label: "Nasdaq 100", cat: "index" },
+    { yh: "^VIX", sym: "VIX", label: "Volatility", cat: "index" },
+  ];
+  const results = await Promise.all(map.map((m) => fetchYahooChart(m.yh)));
   const out: Quote[] = [];
-  for (const q of rows) {
-    const meta = map[q.symbol];
-    if (!meta) continue;
-    out.push({
-      symbol: meta.sym,
-      label: meta.label,
-      category: meta.cat,
-      price: Number(q.regularMarketPrice ?? 0),
-      change_24h: Number(q.regularMarketChangePercent ?? 0),
-    });
-  }
+  map.forEach((m, i) => {
+    const r = results[i];
+    if (r) out.push({ symbol: m.sym, label: m.label, category: m.cat, price: r.price, change_24h: r.change });
+  });
   return out;
 }
 

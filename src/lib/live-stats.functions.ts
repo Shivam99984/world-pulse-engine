@@ -4,16 +4,23 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 export const liveStats = createServerFn({ method: "GET" }).handler(async () => {
   const since5m = new Date(Date.now() - 5 * 60_000).toISOString();
   const since1h = new Date(Date.now() - 60 * 60_000).toISOString();
+  const since24h = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
 
-  const [recentEvents, recentImpacts, riskSample, quotes] = await Promise.all([
+  const [recentEvents, impactsCountries, eventsCountries, riskSample, quotes] = await Promise.all([
     supabaseAdmin
       .from("events")
       .select("id,created_at,risk_score", { count: "exact" })
       .gte("created_at", since5m),
     supabaseAdmin
       .from("event_impacts")
-      .select("country_code,created_at")
+      .select("country_code")
       .gte("created_at", since1h),
+    supabaseAdmin
+      .from("events")
+      .select("countries")
+      .gte("created_at", since24h)
+      .not("countries", "eq", "{}")
+      .limit(1000),
     supabaseAdmin
       .from("events")
       .select("risk_score")
@@ -23,7 +30,12 @@ export const liveStats = createServerFn({ method: "GET" }).handler(async () => {
   ]);
 
   const eventsPerMin = Math.round(((recentEvents.data?.length ?? 0) / 5) * 10) / 10;
-  const activeCountries = new Set((recentImpacts.data ?? []).map((r) => r.country_code)).size;
+  const countrySet = new Set<string>();
+  for (const r of impactsCountries.data ?? []) if (r.country_code) countrySet.add(r.country_code);
+  for (const r of eventsCountries.data ?? []) {
+    for (const c of (r.countries as string[]) ?? []) if (c) countrySet.add(c);
+  }
+  const activeCountries = countrySet.size;
   const avgRisk =
     (riskSample.data ?? []).length > 0
       ? Math.round(
