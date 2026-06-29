@@ -87,7 +87,7 @@ export const listEventFacets = createServerFn({ method: "GET" }).handler(async (
       .from("events")
       .select("industries")
       .gte("created_at", since)
-      .neq("industries", "{}")
+      .not("industries", "eq", "{}")
       .order("created_at", { ascending: false })
       .limit(2000),
   ]);
