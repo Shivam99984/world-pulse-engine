@@ -54,13 +54,40 @@ function project(lat: number, lng: number) {
 
 function HeatmapPage() {
   const qc = useQueryClient();
+  const router = useRouter();
+  const navigate = useNavigate({ from: "/heatmap" });
+  const { view } = Route.useSearch();
   const fetchRisk = useServerFn(listCountryRisk);
+  const fetchMarkers = useServerFn(listImpactMarkers);
   const { data } = useQuery({
     queryKey: ["country-risk"],
     queryFn: () => fetchRisk(),
     refetchInterval: 30_000,
   });
+  const { data: markersData } = useQuery({
+    queryKey: ["impact-markers"],
+    queryFn: () => fetchMarkers(),
+    enabled: view === "globe",
+  });
   const [pulseId, setPulseId] = useState<string | null>(null);
+
+  const points = useMemo(
+    () =>
+      (markersData?.markers ?? []).map((m) => ({
+        lat: Number(m.lat),
+        lng: Number(m.lng),
+        size: Math.max(0.2, m.impact_score / 100),
+        color:
+          m.impact_score >= 70
+            ? "#dc2626"
+            : m.impact_score >= 40
+              ? "#f59e0b"
+              : "#16a34a",
+        label: `${m.country_name} — impact ${m.impact_score}`,
+        eventId: m.event_id,
+      })),
+    [markersData],
+  );
 
   useEffect(() => {
     const channel = supabase
