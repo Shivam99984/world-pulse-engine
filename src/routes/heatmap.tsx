@@ -1,9 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
-import { Activity, Radio } from "lucide-react";
-import { listCountryRisk } from "@/lib/events.functions";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Activity, Loader2, Radio } from "lucide-react";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
+import { listCountryRisk, listImpactMarkers } from "@/lib/events.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { SplitText } from "@/components/rb/SplitText";
 import { ScrambleText } from "@/components/rb/ScrambleText";
@@ -11,15 +13,23 @@ import { Silk } from "@/components/rb/Silk";
 import { cn } from "@/lib/utils";
 import { LiveTicker } from "@/components/live/LiveTicker";
 import { LiveStatsBar } from "@/components/live/LiveStatsBar";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
+const Globe = lazy(() => import("react-globe.gl").then((m) => ({ default: m.default })));
+
+const searchSchema = z.object({
+  view: fallback(z.enum(["heatmap", "globe"]), "heatmap").default("heatmap"),
+});
 
 export const Route = createFileRoute("/heatmap")({
+  validateSearch: zodValidator(searchSchema),
   head: () => ({
     meta: [
       { title: "Global Risk Heatmap — GeoPulse AI" },
       {
         name: "description",
         content:
-          "Real-time global heatmap of country risk levels driven by live AI event impact analysis.",
+          "Real-time global heatmap and 3D world map of country risk driven by live AI event impact analysis.",
       },
     ],
   }),
