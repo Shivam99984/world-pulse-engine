@@ -308,6 +308,7 @@ function HeatmapPage() {
           </aside>
         </div>
       </section>
+      </Tabs>
     </div>
   );
 }
