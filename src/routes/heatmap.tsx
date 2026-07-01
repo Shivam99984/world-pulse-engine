@@ -1,9 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
-import { Activity, Radio } from "lucide-react";
-import { listCountryRisk } from "@/lib/events.functions";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Activity, Loader2, Radio } from "lucide-react";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
+import { listCountryRisk, listImpactMarkers } from "@/lib/events.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { SplitText } from "@/components/rb/SplitText";
 import { ScrambleText } from "@/components/rb/ScrambleText";
@@ -11,15 +13,23 @@ import { Silk } from "@/components/rb/Silk";
 import { cn } from "@/lib/utils";
 import { LiveTicker } from "@/components/live/LiveTicker";
 import { LiveStatsBar } from "@/components/live/LiveStatsBar";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
+const Globe = lazy(() => import("react-globe.gl").then((m) => ({ default: m.default })));
+
+const searchSchema = z.object({
+  view: fallback(z.enum(["heatmap", "globe"]), "heatmap").default("heatmap"),
+});
 
 export const Route = createFileRoute("/heatmap")({
+  validateSearch: zodValidator(searchSchema),
   head: () => ({
     meta: [
       { title: "Global Risk Heatmap — GeoPulse AI" },
       {
         name: "description",
         content:
-          "Real-time global heatmap of country risk levels driven by live AI event impact analysis.",
+          "Real-time global heatmap and 3D world map of country risk driven by live AI event impact analysis.",
       },
     ],
   }),
@@ -44,13 +54,40 @@ function project(lat: number, lng: number) {
 
 function HeatmapPage() {
   const qc = useQueryClient();
+  const router = useRouter();
+  const navigate = useNavigate({ from: "/heatmap" });
+  const { view } = Route.useSearch();
   const fetchRisk = useServerFn(listCountryRisk);
+  const fetchMarkers = useServerFn(listImpactMarkers);
   const { data } = useQuery({
     queryKey: ["country-risk"],
     queryFn: () => fetchRisk(),
     refetchInterval: 30_000,
   });
+  const { data: markersData } = useQuery({
+    queryKey: ["impact-markers"],
+    queryFn: () => fetchMarkers(),
+    enabled: view === "globe",
+  });
   const [pulseId, setPulseId] = useState<string | null>(null);
+
+  const points = useMemo(
+    () =>
+      (markersData?.markers ?? []).map((m) => ({
+        lat: Number(m.lat),
+        lng: Number(m.lng),
+        size: Math.max(0.2, m.impact_score / 100),
+        color:
+          m.impact_score >= 70
+            ? "#dc2626"
+            : m.impact_score >= 40
+              ? "#f59e0b"
+              : "#16a34a",
+        label: `${m.country_name} — impact ${m.impact_score}`,
+        eventId: m.event_id,
+      })),
+    [markersData],
+  );
 
   useEffect(() => {
     const channel = supabase
@@ -117,57 +154,112 @@ function HeatmapPage() {
 
       <LiveStatsBar className="mt-6" />
 
-      <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-card/70 shadow-soft backdrop-blur">
-        <div className="flex items-center justify-between border-b border-border/60 px-4 py-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <Radio className="h-3.5 w-3.5 text-primary" /> {countries.length} countries · {total} signals
-          </span>
-          <Legend />
-        </div>
-        <div className="grid gap-0 lg:grid-cols-[1fr_320px]">
-          <div className="relative aspect-[2/1] w-full overflow-hidden bg-[radial-gradient(ellipse_at_center,hsl(var(--background))_0%,transparent_70%)]">
-            <WorldMapSvg />
-            {countries.map((c) => {
-              const { x, y } = project(c.lat, c.lng);
-              const tier = riskTier(c.max_risk);
-              const size = 8 + (c.max_risk / 100) * 28;
-              const pulse = pulseId === c.country_code;
-              return (
-                <div
-                  key={c.country_code}
-                  className="group absolute -translate-x-1/2 -translate-y-1/2"
-                  style={{ left: `${x * 100}%`, top: `${y * 100}%` }}
-                >
-                  <span
-                    className={cn("absolute inset-0 rounded-full", pulse && "animate-ping")}
-                    style={{
-                      width: size,
-                      height: size,
-                      transform: "translate(-50%, -50%)",
-                      background: tier.glow,
-                      left: "50%",
-                      top: "50%",
-                    }}
-                  />
-                  <span
-                    className="block rounded-full ring-2 ring-background/80 transition-transform group-hover:scale-125"
-                    style={{
-                      width: size,
-                      height: size,
-                      background: tier.color,
-                      boxShadow: `0 0 ${size}px ${tier.glow}`,
-                    }}
-                  />
-                  <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[11px] opacity-0 shadow-elegant transition-opacity group-hover:opacity-100">
-                    <div className="font-semibold">{c.country_name}</div>
-                    <div className="text-muted-foreground">
-                      {tier.label} · risk {c.max_risk} · {c.events} signals
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+      <Tabs
+        value={view}
+        onValueChange={(v) =>
+          navigate({ search: { view: v as "heatmap" | "globe" }, replace: true })
+        }
+        className="mt-6"
+      >
+        <TabsList>
+          <TabsTrigger value="heatmap">Heatmap (2D)</TabsTrigger>
+          <TabsTrigger value="globe">World Map (3D)</TabsTrigger>
+        </TabsList>
+
+        <section className="mt-3 overflow-hidden rounded-2xl border border-border bg-card/70 shadow-soft backdrop-blur">
+          <div className="flex items-center justify-between border-b border-border/60 px-4 py-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Radio className="h-3.5 w-3.5 text-primary" /> {countries.length} countries · {total} signals
+            </span>
+            <Legend />
           </div>
+          <div className="grid gap-0 lg:grid-cols-[1fr_320px]">
+            <div className="relative w-full overflow-hidden bg-[radial-gradient(ellipse_at_center,hsl(var(--background))_0%,transparent_70%)]">
+              <TabsContent value="heatmap" className="m-0">
+                <div className="relative aspect-[2/1] w-full">
+                  <WorldMapSvg />
+                  {countries.map((c) => {
+                    const { x, y } = project(c.lat, c.lng);
+                    const tier = riskTier(c.max_risk);
+                    const size = 8 + (c.max_risk / 100) * 28;
+                    const pulse = pulseId === c.country_code;
+                    return (
+                      <div
+                        key={c.country_code}
+                        className="group absolute -translate-x-1/2 -translate-y-1/2"
+                        style={{ left: `${x * 100}%`, top: `${y * 100}%` }}
+                      >
+                        <span
+                          className={cn("absolute inset-0 rounded-full", pulse && "animate-ping")}
+                          style={{
+                            width: size,
+                            height: size,
+                            transform: "translate(-50%, -50%)",
+                            background: tier.glow,
+                            left: "50%",
+                            top: "50%",
+                          }}
+                        />
+                        <span
+                          className="block rounded-full ring-2 ring-background/80 transition-transform group-hover:scale-125"
+                          style={{
+                            width: size,
+                            height: size,
+                            background: tier.color,
+                            boxShadow: `0 0 ${size}px ${tier.glow}`,
+                          }}
+                        />
+                        <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[11px] opacity-0 shadow-elegant transition-opacity group-hover:opacity-100">
+                          <div className="font-semibold">{c.country_name}</div>
+                          <div className="text-muted-foreground">
+                            {tier.label} · risk {c.max_risk} · {c.events} signals
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="globe" className="m-0">
+                <div style={{ height: 560 }}>
+                  <Suspense
+                    fallback={
+                      <div className="grid h-full place-items-center text-muted-foreground">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Loader2 className="h-4 w-4 animate-spin" /> Loading globe…
+                        </div>
+                      </div>
+                    }
+                  >
+                    {typeof window !== "undefined" && (
+                      <Globe
+                        backgroundColor="rgba(0,0,0,0)"
+                        globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+                        pointsData={points}
+                        pointAltitude={(d: object) => (d as { size: number }).size * 0.4}
+                        pointColor={(d: object) => (d as { color: string }).color}
+                        pointRadius={0.4}
+                        pointLabel={(d: object) => (d as { label: string }).label}
+                        onPointClick={(d: object) => {
+                          const id = (d as { eventId: string }).eventId;
+                          if (id) router.navigate({ to: "/event/$id", params: { id } });
+                        }}
+                        ringsData={points.filter((p) => p.size > 0.4)}
+                        ringColor={(d: object) => () => (d as { color: string }).color}
+                        ringMaxRadius={5}
+                        ringPropagationSpeed={2}
+                        ringRepeatPeriod={1400}
+                        ringAltitude={0.01}
+                        atmosphereColor="#1978E5"
+                        atmosphereAltitude={0.22}
+                        height={560}
+                      />
+                    )}
+                  </Suspense>
+                </div>
+              </TabsContent>
+            </div>
 
           <aside className="border-t border-border/60 lg:border-l lg:border-t-0">
             <div className="px-4 py-2 text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -216,6 +308,7 @@ function HeatmapPage() {
           </aside>
         </div>
       </section>
+      </Tabs>
     </div>
   );
 }
