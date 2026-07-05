@@ -185,6 +185,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     sources: string[];
     source_urls: string[];
     breaking: boolean;
+    published_at: string | null;
   };
   const fallbackRows: Row[] = fresh.slice(0, 12).map((c) => {
     const text = `${c.title} ${c.description}`;
@@ -201,8 +202,10 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
       sources: [c.source],
       source_urls: c.link ? [c.link] : [],
       breaking: false,
+      published_at: c.published_at,
     };
   });
+
 
   // Map headline -> original URL so AI-enriched rows keep deep links
   const linkByTitle = new Map<string, string>();
