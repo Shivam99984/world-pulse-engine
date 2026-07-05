@@ -184,6 +184,7 @@ export type Database = {
           headline: string
           id: string
           industries: string[]
+          published_at: string | null
           risk_score: number
           sentiment: number
           source_urls: string[]
@@ -199,6 +200,7 @@ export type Database = {
           headline: string
           id?: string
           industries?: string[]
+          published_at?: string | null
           risk_score?: number
           sentiment?: number
           source_urls?: string[]
@@ -214,6 +216,7 @@ export type Database = {
           headline?: string
           id?: string
           industries?: string[]
+          published_at?: string | null
           risk_score?: number
           sentiment?: number
           source_urls?: string[]

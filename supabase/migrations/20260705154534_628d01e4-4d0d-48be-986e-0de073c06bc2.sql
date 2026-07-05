@@ -1,0 +1,1 @@
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS published_at timestamptz; UPDATE public.events SET published_at = created_at WHERE published_at IS NULL; CREATE INDEX IF NOT EXISTS events_published_at_idx ON public.events (published_at DESC);
