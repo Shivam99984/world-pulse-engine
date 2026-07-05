@@ -243,15 +243,38 @@ export function IntelCard({
         <span className="font-medium text-foreground/80">
           {event.sources.length > 0 ? event.sources.slice(0, 3).join(" · ") : "Unknown source"}
         </span>
-        <span className="opacity-60">•</span>
-        <span title={new Date(event.created_at).toLocaleString()}>
-          {new Date(event.created_at).toLocaleString(undefined, {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
+        {event.published_at ? (
+          <>
+            <span className="opacity-60">•</span>
+            <span
+              className="text-foreground/70"
+              title={`Published at source: ${new Date(event.published_at).toLocaleString()}`}
+            >
+              Published{" "}
+              {new Date(event.published_at).toLocaleString(undefined, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZoneName: "short",
+              })}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="opacity-60">•</span>
+            <span title={`Ingested: ${new Date(event.created_at).toLocaleString()}`}>
+              Ingested{" "}
+              {new Date(event.created_at).toLocaleString(undefined, {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          </>
+        )}
         {event.source_urls && event.source_urls[0] && (
           <>
             <span className="opacity-60">•</span>
@@ -267,6 +290,7 @@ export function IntelCard({
           </>
         )}
       </div>
+
 
       <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
 
