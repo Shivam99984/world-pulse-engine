@@ -23,8 +23,8 @@ function stripHtml(s: string) {
     .trim();
 }
 
-function parseRss(xml: string, max = 8): { title: string; description: string; link: string }[] {
-  const items: { title: string; description: string; link: string }[] = [];
+function parseRss(xml: string, max = 8): { title: string; description: string; link: string; published_at: string | null }[] {
+  const items: { title: string; description: string; link: string; published_at: string | null }[] = [];
   const re = /<item[\s\S]*?>([\s\S]*?)<\/item>/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) && items.length < max) {
@@ -32,14 +32,31 @@ function parseRss(xml: string, max = 8): { title: string; description: string; l
     const title = stripHtml(/<title>([\s\S]*?)<\/title>/i.exec(block)?.[1] ?? "");
     const desc = stripHtml(/<description>([\s\S]*?)<\/description>/i.exec(block)?.[1] ?? "");
     const link = stripHtml(/<link>([\s\S]*?)<\/link>/i.exec(block)?.[1] ?? "");
-    if (title) items.push({ title, description: desc, link });
+    const pubRaw = stripHtml(
+      /<pubDate>([\s\S]*?)<\/pubDate>/i.exec(block)?.[1] ??
+        /<dc:date>([\s\S]*?)<\/dc:date>/i.exec(block)?.[1] ??
+        "",
+    );
+    let published_at: string | null = null;
+    if (pubRaw) {
+      const d = new Date(pubRaw);
+      if (!isNaN(d.getTime())) published_at = d.toISOString();
+    }
+    if (title) items.push({ title, description: desc, link, published_at });
   }
   return items;
 }
 
+// GDELT seendate format: YYYYMMDDTHHMMSSZ
+function parseGdeltDate(s?: string): string | null {
+  if (!s || s.length < 15) return null;
+  const iso = `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T${s.slice(9, 11)}:${s.slice(11, 13)}:${s.slice(13, 15)}Z`;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 // GDELT 2.1 free DOC API: high-volume, structured global news with article URLs.
-// https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/  — no key, generous limits.
-async function fetchGdelt(): Promise<{ title: string; description: string; link: string; source: string }[]> {
+async function fetchGdelt(): Promise<{ title: string; description: string; link: string; source: string; published_at: string | null }[]> {
   try {
     const u =
       "https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang:eng&mode=ArtList&format=json&maxrecords=25&sort=DateDesc";
@@ -53,11 +70,13 @@ async function fetchGdelt(): Promise<{ title: string; description: string; link:
         description: "",
         link: a.url!,
         source: a.domain ?? "GDELT",
+        published_at: parseGdeltDate(a.seendate),
       }));
   } catch {
     return [];
   }
 }
+
 
 const EnrichedSchema = z.object({
   events: z
@@ -80,7 +99,7 @@ const EnrichedSchema = z.object({
 });
 
 export const ingestRealNews = createServerFn({ method: "POST" }).handler(async () => {
-  const collected: { title: string; description: string; source: string; link: string }[] = [];
+  const collected: { title: string; description: string; source: string; link: string; published_at: string | null }[] = [];
   await Promise.all(
     FEEDS.map(async (f) => {
       try {
@@ -166,6 +185,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     sources: string[];
     source_urls: string[];
     breaking: boolean;
+    published_at: string | null;
   };
   const fallbackRows: Row[] = fresh.slice(0, 12).map((c) => {
     const text = `${c.title} ${c.description}`;
@@ -182,12 +202,14 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
       sources: [c.source],
       source_urls: c.link ? [c.link] : [],
       breaking: false,
+      published_at: c.published_at,
     };
   });
 
-  // Map headline -> original URL so AI-enriched rows keep deep links
-  const linkByTitle = new Map<string, string>();
-  for (const c of fresh) if (c.link) linkByTitle.set(c.title.toLowerCase().trim(), c.link);
+
+  // Map headline -> {url, published_at} so AI-enriched rows keep deep links & dates
+  const metaByTitle = new Map<string, { link: string; published_at: string | null }>();
+  for (const c of fresh) metaByTitle.set(c.title.toLowerCase().trim(), { link: c.link, published_at: c.published_at });
 
   let rows: Row[] = [];
   const key = process.env.GROQ_API_KEY;
@@ -208,7 +230,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
       });
 
       rows = output.events.map((e) => {
-        const link = linkByTitle.get(e.headline.toLowerCase().trim()) ?? "";
+        const meta = metaByTitle.get(e.headline.toLowerCase().trim());
         return {
           headline: e.headline,
           summary: e.summary,
@@ -219,14 +241,16 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
           countries: e.countries,
           industries: e.industries,
           sources: e.sources,
-          source_urls: link ? [link] : [],
+          source_urls: meta?.link ? [meta.link] : [],
           breaking: e.breaking,
+          published_at: meta?.published_at ?? null,
         };
       });
     } catch (err) {
       console.warn("AI enrichment unavailable, using raw RSS fallback:", (err as Error).message);
     }
   }
+
 
   const aiEnriched = rows.length > 0;
   if (!aiEnriched) rows = fallbackRows;
