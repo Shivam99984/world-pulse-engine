@@ -207,9 +207,9 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
   });
 
 
-  // Map headline -> original URL so AI-enriched rows keep deep links
-  const linkByTitle = new Map<string, string>();
-  for (const c of fresh) if (c.link) linkByTitle.set(c.title.toLowerCase().trim(), c.link);
+  // Map headline -> {url, published_at} so AI-enriched rows keep deep links & dates
+  const metaByTitle = new Map<string, { link: string; published_at: string | null }>();
+  for (const c of fresh) metaByTitle.set(c.title.toLowerCase().trim(), { link: c.link, published_at: c.published_at });
 
   let rows: Row[] = [];
   const key = process.env.GROQ_API_KEY;
@@ -230,7 +230,7 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
       });
 
       rows = output.events.map((e) => {
-        const link = linkByTitle.get(e.headline.toLowerCase().trim()) ?? "";
+        const meta = metaByTitle.get(e.headline.toLowerCase().trim());
         return {
           headline: e.headline,
           summary: e.summary,
@@ -241,14 +241,16 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
           countries: e.countries,
           industries: e.industries,
           sources: e.sources,
-          source_urls: link ? [link] : [],
+          source_urls: meta?.link ? [meta.link] : [],
           breaking: e.breaking,
+          published_at: meta?.published_at ?? null,
         };
       });
     } catch (err) {
       console.warn("AI enrichment unavailable, using raw RSS fallback:", (err as Error).message);
     }
   }
+
 
   const aiEnriched = rows.length > 0;
   if (!aiEnriched) rows = fallbackRows;
