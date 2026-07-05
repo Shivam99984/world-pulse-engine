@@ -23,8 +23,8 @@ function stripHtml(s: string) {
     .trim();
 }
 
-function parseRss(xml: string, max = 8): { title: string; description: string; link: string }[] {
-  const items: { title: string; description: string; link: string }[] = [];
+function parseRss(xml: string, max = 8): { title: string; description: string; link: string; published_at: string | null }[] {
+  const items: { title: string; description: string; link: string; published_at: string | null }[] = [];
   const re = /<item[\s\S]*?>([\s\S]*?)<\/item>/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) && items.length < max) {
@@ -32,14 +32,31 @@ function parseRss(xml: string, max = 8): { title: string; description: string; l
     const title = stripHtml(/<title>([\s\S]*?)<\/title>/i.exec(block)?.[1] ?? "");
     const desc = stripHtml(/<description>([\s\S]*?)<\/description>/i.exec(block)?.[1] ?? "");
     const link = stripHtml(/<link>([\s\S]*?)<\/link>/i.exec(block)?.[1] ?? "");
-    if (title) items.push({ title, description: desc, link });
+    const pubRaw = stripHtml(
+      /<pubDate>([\s\S]*?)<\/pubDate>/i.exec(block)?.[1] ??
+        /<dc:date>([\s\S]*?)<\/dc:date>/i.exec(block)?.[1] ??
+        "",
+    );
+    let published_at: string | null = null;
+    if (pubRaw) {
+      const d = new Date(pubRaw);
+      if (!isNaN(d.getTime())) published_at = d.toISOString();
+    }
+    if (title) items.push({ title, description: desc, link, published_at });
   }
   return items;
 }
 
+// GDELT seendate format: YYYYMMDDTHHMMSSZ
+function parseGdeltDate(s?: string): string | null {
+  if (!s || s.length < 15) return null;
+  const iso = `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T${s.slice(9, 11)}:${s.slice(11, 13)}:${s.slice(13, 15)}Z`;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 // GDELT 2.1 free DOC API: high-volume, structured global news with article URLs.
-// https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/  — no key, generous limits.
-async function fetchGdelt(): Promise<{ title: string; description: string; link: string; source: string }[]> {
+async function fetchGdelt(): Promise<{ title: string; description: string; link: string; source: string; published_at: string | null }[]> {
   try {
     const u =
       "https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang:eng&mode=ArtList&format=json&maxrecords=25&sort=DateDesc";
@@ -53,11 +70,13 @@ async function fetchGdelt(): Promise<{ title: string; description: string; link:
         description: "",
         link: a.url!,
         source: a.domain ?? "GDELT",
+        published_at: parseGdeltDate(a.seendate),
       }));
   } catch {
     return [];
   }
 }
+
 
 const EnrichedSchema = z.object({
   events: z
