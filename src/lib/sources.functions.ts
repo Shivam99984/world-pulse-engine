@@ -99,7 +99,7 @@ const EnrichedSchema = z.object({
 });
 
 export const ingestRealNews = createServerFn({ method: "POST" }).handler(async () => {
-  const collected: { title: string; description: string; source: string; link: string }[] = [];
+  const collected: { title: string; description: string; source: string; link: string; published_at: string | null }[] = [];
   await Promise.all(
     FEEDS.map(async (f) => {
       try {
