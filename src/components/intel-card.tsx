@@ -7,9 +7,11 @@ import {
   ArrowUpRight,
   Bookmark,
   Clock,
+  ExternalLink,
   Flame,
   Globe2,
   Link2,
+  Newspaper,
   Share2,
   ThumbsDown,
   ThumbsUp,
@@ -235,7 +237,38 @@ export function IntelCard({
         ))}
       </div>
 
+      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+        <Newspaper className="h-3 w-3" />
+        <span className="font-medium text-foreground/80">
+          {event.sources.length > 0 ? event.sources.slice(0, 3).join(" · ") : "Unknown source"}
+        </span>
+        <span className="opacity-60">•</span>
+        <span title={new Date(event.created_at).toLocaleString()}>
+          {new Date(event.created_at).toLocaleString(undefined, {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </span>
+        {event.source_urls && event.source_urls[0] && (
+          <>
+            <span className="opacity-60">•</span>
+            <a
+              href={event.source_urls[0]}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              Read original <ExternalLink className="h-3 w-3" />
+            </a>
+          </>
+        )}
+      </div>
+
       <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center gap-1">
             {positive ? (
