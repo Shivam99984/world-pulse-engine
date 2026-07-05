@@ -43,6 +43,7 @@ export type IntelEvent = {
   source_urls?: string[];
   breaking: boolean;
   created_at: string;
+  published_at?: string | null;
 };
 
 function riskTone(score: number) {
