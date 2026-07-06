@@ -783,4 +783,82 @@ function TransportToggle({
   );
 }
 
+function Pagination({
+  currentPage,
+  totalPages,
+  onChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  const pages = useMemo(() => {
+    const set = new Set<number>();
+    set.add(1);
+    set.add(totalPages);
+    for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+      if (i >= 1 && i <= totalPages) set.add(i);
+    }
+    const sorted = Array.from(set).sort((a, b) => a - b);
+    const out: (number | "…")[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push("…");
+      out.push(sorted[i]);
+    }
+    return out;
+  }, [currentPage, totalPages]);
+
+  return (
+    <nav
+      aria-label="Pagination"
+      className="mt-8 flex flex-wrap items-center justify-center gap-1.5"
+    >
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onChange(currentPage - 1)}
+        disabled={currentPage <= 1}
+        aria-label="Previous page"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      {pages.map((p, i) =>
+        p === "…" ? (
+          <span
+            key={`gap-${i}`}
+            className="px-2 text-xs text-muted-foreground"
+            aria-hidden="true"
+          >
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            aria-current={p === currentPage ? "page" : undefined}
+            className={cn(
+              "min-w-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+              p === currentPage
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {p}
+          </button>
+        ),
+      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onChange(currentPage + 1)}
+        disabled={currentPage >= totalPages}
+        aria-label="Next page"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </nav>
+  );
+}
+
+
 
