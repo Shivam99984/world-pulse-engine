@@ -233,16 +233,11 @@ function FeedPage() {
     autoFallback: true,
     onInsert: (newEvent) => {
       let prepended = false;
-      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
-        if (!old || !old.pages?.length) return old;
-        const exists = old.pages.some((p) => p.events.some((e) => e.id === newEvent.id));
-        if (exists) return old;
+      qc.setQueriesData<EventsPage>({ queryKey: ["events"] }, (old) => {
+        if (!old) return old;
+        if (old.events.some((e) => e.id === newEvent.id)) return old;
         prepended = true;
-        const [first, ...rest] = old.pages;
-        return {
-          ...old,
-          pages: [{ ...first, events: [newEvent as IntelEvent, ...first.events] }, ...rest],
-        };
+        return { ...old, events: [newEvent as IntelEvent, ...old.events] };
       });
       if (prepended) {
         setPending((n) => n + 1);
@@ -250,30 +245,22 @@ function FeedPage() {
       }
     },
     onUpdate: (updated) => {
-      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
+      qc.setQueriesData<EventsPage>({ queryKey: ["events"] }, (old) => {
         if (!old) return old;
         return {
           ...old,
-          pages: old.pages.map((p) => ({
-            ...p,
-            events: p.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
-          })),
+          events: old.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
         };
       });
     },
     onDelete: (removedId) => {
-      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
+      qc.setQueriesData<EventsPage>({ queryKey: ["events"] }, (old) => {
         if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((p) => ({
-            ...p,
-            events: p.events.filter((e) => e.id !== removedId),
-          })),
-        };
+        return { ...old, events: old.events.filter((e) => e.id !== removedId) };
       });
     },
   });
+
 
   // Notify the user when the chosen transport had to fall back to the other.
   useEffect(() => {
