@@ -124,10 +124,11 @@ function FeedPage() {
 
   type EventsPage = { events: IntelEvent[]; nextCursor: string | null };
   const PAGE_SIZE = 30;
-  const infiniteQuery = useInfiniteQuery<EventsPage>({
+  const FETCH_LIMIT = 300;
+  const [page, setPage] = useState(1);
+  const eventsQuery = useQuery<EventsPage>({
     queryKey: ["events", active, debouncedQuery, countries, industries, personalizeTopics],
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) =>
+    queryFn: () =>
       list({
         data: {
           topics: active.length ? active : undefined,
@@ -135,17 +136,19 @@ function FeedPage() {
           countries: countries.length ? countries : undefined,
           industries: industries.length ? industries : undefined,
           personalizeTopics: personalizeTopics.length ? personalizeTopics : undefined,
-          limit: PAGE_SIZE,
-          cursor: pageParam as string | undefined,
+          limit: FETCH_LIMIT,
         },
       }) as Promise<EventsPage>,
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = infiniteQuery;
+  const { data, isLoading } = eventsQuery;
 
-  const allEvents = useMemo<IntelEvent[]>(() => {
-    return (data?.pages ?? []).flatMap((p) => p.events);
-  }, [data]);
+  const allEvents = useMemo<IntelEvent[]>(() => data?.events ?? [], [data]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [active, debouncedQuery, countries, industries, personalizeTopics, risk, confidence]);
+
 
   const { data: facets } = useQuery({
     queryKey: ["event-facets"],
