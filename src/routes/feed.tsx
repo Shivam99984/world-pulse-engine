@@ -557,11 +557,13 @@ function FeedPage() {
       )}
 
       <div className="mt-3 text-xs text-muted-foreground">
-        Showing {events.length} of {allEvents.length} events
+        Showing {events.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}
+        –{Math.min(currentPage * PAGE_SIZE, events.length)} of {events.length}
+        {allEvents.length !== events.length && ` (${allEvents.length} total)`}
       </div>
 
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div ref={pageListRef} className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {isLoading &&
           Array.from({ length: 9 }).map((_, i) => <IntelCardSkeleton key={i} />)}
         {!isLoading && (generating || ingesting) &&
@@ -592,7 +594,7 @@ function FeedPage() {
             </p>
           </div>
         )}
-        {events.map((e, i) => (
+        {pagedEvents.map((e, i) => (
           <IntelCard
             key={e.id}
             event={e}
@@ -601,28 +603,16 @@ function FeedPage() {
             initialVote={(voteMap[e.id] as 1 | -1 | 0) ?? 0}
           />
         ))}
-        {isFetchingNextPage &&
-          Array.from({ length: 3 }).map((_, i) => <IntelCardSkeleton key={`np-${i}`} />)}
       </div>
 
-      {hasNextPage && (
-        <div ref={sentinelRef} className="mt-6 flex justify-center py-6">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-          >
-            {isFetchingNextPage ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-            Load more
-          </Button>
-        </div>
+      {totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onChange={goToPage}
+        />
       )}
-      {!hasNextPage && events.length > 0 && (
-        <div className="mt-6 text-center text-xs text-muted-foreground">
-          You're all caught up.
-        </div>
-      )}
+
     </div>
   );
 }
