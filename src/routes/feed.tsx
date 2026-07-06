@@ -337,23 +337,8 @@ function FeedPage() {
     };
   }, [autoIngest, ingest, qc]);
 
-  // Infinite scroll sentinel
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const loadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) loadMore();
-      },
-      { rootMargin: "600px 0px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [loadMore]);
+
+
 
 
 
