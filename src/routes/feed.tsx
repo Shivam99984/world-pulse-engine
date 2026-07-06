@@ -1,8 +1,9 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Pause, Play, RadioTower, Radio, RefreshCw, Search, SlidersHorizontal, Sparkles, Wifi, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Pause, Play, RadioTower, Radio, RefreshCw, Search, SlidersHorizontal, Sparkles, Wifi, X } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
@@ -123,10 +124,11 @@ function FeedPage() {
 
   type EventsPage = { events: IntelEvent[]; nextCursor: string | null };
   const PAGE_SIZE = 30;
-  const infiniteQuery = useInfiniteQuery<EventsPage>({
+  const FETCH_LIMIT = 300;
+  const [page, setPage] = useState(1);
+  const eventsQuery = useQuery<EventsPage>({
     queryKey: ["events", active, debouncedQuery, countries, industries, personalizeTopics],
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) =>
+    queryFn: () =>
       list({
         data: {
           topics: active.length ? active : undefined,
@@ -134,17 +136,19 @@ function FeedPage() {
           countries: countries.length ? countries : undefined,
           industries: industries.length ? industries : undefined,
           personalizeTopics: personalizeTopics.length ? personalizeTopics : undefined,
-          limit: PAGE_SIZE,
-          cursor: pageParam as string | undefined,
+          limit: FETCH_LIMIT,
         },
       }) as Promise<EventsPage>,
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = infiniteQuery;
+  const { data, isLoading } = eventsQuery;
 
-  const allEvents = useMemo<IntelEvent[]>(() => {
-    return (data?.pages ?? []).flatMap((p) => p.events);
-  }, [data]);
+  const allEvents = useMemo<IntelEvent[]>(() => data?.events ?? [], [data]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [active, debouncedQuery, countries, industries, personalizeTopics, risk, confidence]);
+
 
   const { data: facets } = useQuery({
     queryKey: ["event-facets"],
@@ -185,6 +189,22 @@ function FeedPage() {
       return true;
     });
   }, [allEvents, risk, confidence]);
+
+  const totalPages = Math.max(1, Math.ceil(events.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedEvents = useMemo(
+    () => events.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [events, currentPage],
+  );
+  const pageListRef = useRef<HTMLDivElement | null>(null);
+  function goToPage(p: number) {
+    const next = Math.max(1, Math.min(totalPages, p));
+    setPage(next);
+    if (typeof window !== "undefined") {
+      pageListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
 
   const activeFilterCount =
     countries.length +
@@ -229,16 +249,11 @@ function FeedPage() {
     autoFallback: true,
     onInsert: (newEvent) => {
       let prepended = false;
-      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
-        if (!old || !old.pages?.length) return old;
-        const exists = old.pages.some((p) => p.events.some((e) => e.id === newEvent.id));
-        if (exists) return old;
+      qc.setQueriesData<EventsPage>({ queryKey: ["events"] }, (old) => {
+        if (!old) return old;
+        if (old.events.some((e) => e.id === newEvent.id)) return old;
         prepended = true;
-        const [first, ...rest] = old.pages;
-        return {
-          ...old,
-          pages: [{ ...first, events: [newEvent as IntelEvent, ...first.events] }, ...rest],
-        };
+        return { ...old, events: [newEvent as IntelEvent, ...old.events] };
       });
       if (prepended) {
         setPending((n) => n + 1);
@@ -246,30 +261,22 @@ function FeedPage() {
       }
     },
     onUpdate: (updated) => {
-      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
+      qc.setQueriesData<EventsPage>({ queryKey: ["events"] }, (old) => {
         if (!old) return old;
         return {
           ...old,
-          pages: old.pages.map((p) => ({
-            ...p,
-            events: p.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
-          })),
+          events: old.events.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
         };
       });
     },
     onDelete: (removedId) => {
-      qc.setQueriesData<InfiniteData<EventsPage>>({ queryKey: ["events"] }, (old) => {
+      qc.setQueriesData<EventsPage>({ queryKey: ["events"] }, (old) => {
         if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((p) => ({
-            ...p,
-            events: p.events.filter((e) => e.id !== removedId),
-          })),
-        };
+        return { ...old, events: old.events.filter((e) => e.id !== removedId) };
       });
     },
   });
+
 
   // Notify the user when the chosen transport had to fall back to the other.
   useEffect(() => {
@@ -346,23 +353,8 @@ function FeedPage() {
     };
   }, [autoIngest, ingest, qc]);
 
-  // Infinite scroll sentinel
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const loadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) loadMore();
-      },
-      { rootMargin: "600px 0px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [loadMore]);
+
+
 
 
 
@@ -565,11 +557,13 @@ function FeedPage() {
       )}
 
       <div className="mt-3 text-xs text-muted-foreground">
-        Showing {events.length} of {allEvents.length} events
+        Showing {events.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}
+        –{Math.min(currentPage * PAGE_SIZE, events.length)} of {events.length}
+        {allEvents.length !== events.length && ` (${allEvents.length} total)`}
       </div>
 
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div ref={pageListRef} className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {isLoading &&
           Array.from({ length: 9 }).map((_, i) => <IntelCardSkeleton key={i} />)}
         {!isLoading && (generating || ingesting) &&
@@ -600,7 +594,7 @@ function FeedPage() {
             </p>
           </div>
         )}
-        {events.map((e, i) => (
+        {pagedEvents.map((e, i) => (
           <IntelCard
             key={e.id}
             event={e}
@@ -609,28 +603,16 @@ function FeedPage() {
             initialVote={(voteMap[e.id] as 1 | -1 | 0) ?? 0}
           />
         ))}
-        {isFetchingNextPage &&
-          Array.from({ length: 3 }).map((_, i) => <IntelCardSkeleton key={`np-${i}`} />)}
       </div>
 
-      {hasNextPage && (
-        <div ref={sentinelRef} className="mt-6 flex justify-center py-6">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-          >
-            {isFetchingNextPage ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-            Load more
-          </Button>
-        </div>
+      {totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onChange={goToPage}
+        />
       )}
-      {!hasNextPage && events.length > 0 && (
-        <div className="mt-6 text-center text-xs text-muted-foreground">
-          You're all caught up.
-        </div>
-      )}
+
     </div>
   );
 }
@@ -800,5 +782,83 @@ function TransportToggle({
     </Popover>
   );
 }
+
+function Pagination({
+  currentPage,
+  totalPages,
+  onChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  const pages = useMemo(() => {
+    const set = new Set<number>();
+    set.add(1);
+    set.add(totalPages);
+    for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+      if (i >= 1 && i <= totalPages) set.add(i);
+    }
+    const sorted = Array.from(set).sort((a, b) => a - b);
+    const out: (number | "…")[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push("…");
+      out.push(sorted[i]);
+    }
+    return out;
+  }, [currentPage, totalPages]);
+
+  return (
+    <nav
+      aria-label="Pagination"
+      className="mt-8 flex flex-wrap items-center justify-center gap-1.5"
+    >
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onChange(currentPage - 1)}
+        disabled={currentPage <= 1}
+        aria-label="Previous page"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      {pages.map((p, i) =>
+        p === "…" ? (
+          <span
+            key={`gap-${i}`}
+            className="px-2 text-xs text-muted-foreground"
+            aria-hidden="true"
+          >
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            aria-current={p === currentPage ? "page" : undefined}
+            className={cn(
+              "min-w-9 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+              p === currentPage
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {p}
+          </button>
+        ),
+      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onChange(currentPage + 1)}
+        disabled={currentPage >= totalPages}
+        aria-label="Next page"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </nav>
+  );
+}
+
 
 
