@@ -190,6 +190,22 @@ function FeedPage() {
     });
   }, [allEvents, risk, confidence]);
 
+  const totalPages = Math.max(1, Math.ceil(events.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedEvents = useMemo(
+    () => events.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [events, currentPage],
+  );
+  const pageListRef = useRef<HTMLDivElement | null>(null);
+  function goToPage(p: number) {
+    const next = Math.max(1, Math.min(totalPages, p));
+    setPage(next);
+    if (typeof window !== "undefined") {
+      pageListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+
   const activeFilterCount =
     countries.length +
     industries.length +
