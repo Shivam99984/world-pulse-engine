@@ -173,6 +173,74 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
     for (const [re, cat] of CAT_RULES) if (re.test(s)) return cat;
     return "Politics";
   };
+  const COUNTRY_RULES: Array<[RegExp, string]> = [
+    [/\b(u\.?s\.?a?|america|american|washington|biden|trump|white house)\b/i, "United States"],
+    [/\b(u\.?k\.?|britain|british|london|england|scotland)\b/i, "United Kingdom"],
+    [/\b(china|chinese|beijing|xi jinping|shanghai)\b/i, "China"],
+    [/\b(russia|russian|moscow|kremlin|putin)\b/i, "Russia"],
+    [/\b(ukraine|ukrainian|kyiv|zelensky)\b/i, "Ukraine"],
+    [/\b(india|indian|delhi|modi|mumbai)\b/i, "India"],
+    [/\b(japan|japanese|tokyo)\b/i, "Japan"],
+    [/\b(germany|german|berlin)\b/i, "Germany"],
+    [/\b(france|french|paris|macron)\b/i, "France"],
+    [/\b(israel|israeli|tel aviv|netanyahu|idf)\b/i, "Israel"],
+    [/\b(iran|iranian|tehran)\b/i, "Iran"],
+    [/\b(gaza|palestin|hamas|west bank)\b/i, "Palestine"],
+    [/\b(saudi|riyadh|mbs)\b/i, "Saudi Arabia"],
+    [/\b(turkey|turkish|ankara|erdogan)\b/i, "Turkey"],
+    [/\b(brazil|brazilian|brasilia|lula)\b/i, "Brazil"],
+    [/\b(mexico|mexican)\b/i, "Mexico"],
+    [/\b(canada|canadian|ottawa|trudeau)\b/i, "Canada"],
+    [/\b(australia|australian|sydney|canberra)\b/i, "Australia"],
+    [/\b(south korea|seoul|korean)\b/i, "South Korea"],
+    [/\b(north korea|pyongyang|kim jong)\b/i, "North Korea"],
+    [/\b(pakistan|islamabad)\b/i, "Pakistan"],
+    [/\b(taiwan|taipei)\b/i, "Taiwan"],
+    [/\b(ghana|accra)\b/i, "Ghana"],
+    [/\b(nigeria|lagos|abuja)\b/i, "Nigeria"],
+    [/\b(south africa|johannesburg|cape town)\b/i, "South Africa"],
+    [/\b(egypt|cairo)\b/i, "Egypt"],
+    [/\b(spain|spanish|madrid)\b/i, "Spain"],
+    [/\b(italy|italian|rome)\b/i, "Italy"],
+    [/\b(argentina|buenos aires)\b/i, "Argentina"],
+    [/\b(venezuela|caracas|maduro)\b/i, "Venezuela"],
+    [/\b(afghanistan|kabul|taliban)\b/i, "Afghanistan"],
+    [/\b(syria|damascus|assad)\b/i, "Syria"],
+    [/\b(yemen|houthi)\b/i, "Yemen"],
+    [/\b(lebanon|beirut|hezbollah)\b/i, "Lebanon"],
+    [/\b(iraq|baghdad)\b/i, "Iraq"],
+    [/\b(eu|european union|brussels)\b/i, "European Union"],
+  ];
+  const INDUSTRY_RULES: Array<[RegExp, string]> = [
+    [/\b(ai|artificial intelligence|chatgpt|openai|anthropic|llm|model)\b/i, "AI"],
+    [/\b(bitcoin|crypto|ethereum|token|blockchain|coin)\b/i, "Crypto"],
+    [/\b(bank|banking|finance|financial|hedge fund|wall street)\b/i, "Finance"],
+    [/\b(oil|gas|opec|petrol|refinery|energy|renewable|solar|wind)\b/i, "Energy"],
+    [/\b(gold|silver|copper|commodity|commodities|wheat|corn)\b/i, "Commodities"],
+    [/\b(defense|military|missile|weapon|nato|army|navy|air force)\b/i, "Defense"],
+    [/\b(tech|software|google|apple|microsoft|meta|amazon|nvidia|chip|semiconductor)\b/i, "Technology"],
+    [/\b(pharma|drug|vaccine|healthcare|hospital|medic)\b/i, "Healthcare"],
+    [/\b(auto|car|ev|tesla|ford|toyota|vehicle)\b/i, "Automotive"],
+    [/\b(airline|aviation|boeing|airbus|flight)\b/i, "Aviation"],
+    [/\b(retail|consumer|amazon|walmart)\b/i, "Retail"],
+    [/\b(real estate|housing|mortgage|property)\b/i, "Real Estate"],
+    [/\b(media|film|movie|hollywood|streaming|netflix|music|art)\b/i, "Media"],
+    [/\b(sport|football|soccer|nba|nfl|olympic|fifa)\b/i, "Sports"],
+    [/\b(climate|carbon|emission|environment)\b/i, "Climate"],
+    [/\b(space|nasa|spacex|rocket|satellite)\b/i, "Space"],
+    [/\b(shipping|trade|tariff|export|import|supply chain)\b/i, "Trade"],
+    [/\b(election|government|policy|parliament)\b/i, "Politics"],
+  ];
+  const guessCountries = (s: string): string[] => {
+    const found: string[] = [];
+    for (const [re, name] of COUNTRY_RULES) if (re.test(s) && !found.includes(name)) found.push(name);
+    return found.slice(0, 4);
+  };
+  const guessIndustries = (s: string): string[] => {
+    const found: string[] = [];
+    for (const [re, name] of INDUSTRY_RULES) if (re.test(s) && !found.includes(name)) found.push(name);
+    return found.slice(0, 3);
+  };
   type Row = {
     headline: string;
     summary: string;
@@ -197,8 +265,8 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
       sentiment,
       risk_score: Math.round(50 + Math.abs(sentiment) * 30),
       confidence: 55,
-      countries: [],
-      industries: [],
+      countries: guessCountries(text),
+      industries: guessIndustries(text),
       sources: [c.source],
       source_urls: c.link ? [c.link] : [],
       breaking: false,
@@ -238,8 +306,8 @@ export const ingestRealNews = createServerFn({ method: "POST" }).handler(async (
           sentiment: Math.max(-1, Math.min(1, e.sentiment)),
           risk_score: Math.round(Math.max(0, Math.min(100, e.risk_score))),
           confidence: Math.round(Math.max(0, Math.min(100, e.confidence))),
-          countries: e.countries,
-          industries: e.industries,
+          countries: e.countries.length > 0 ? e.countries : guessCountries(`${e.headline} ${e.summary}`),
+          industries: e.industries.length > 0 ? e.industries : guessIndustries(`${e.headline} ${e.summary}`),
           sources: e.sources,
           source_urls: meta?.link ? [meta.link] : [],
           breaking: e.breaking,
