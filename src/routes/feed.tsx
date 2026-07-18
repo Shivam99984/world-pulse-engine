@@ -69,10 +69,12 @@ function FeedPage() {
   const logFilter = useServerFn(logFilterEvent);
   const generate = useServerFn(generateEvents);
   const ingest = useServerFn(ingestRealNews);
-  const [personalize, setPersonalize] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("geopulse.feed.personalize") === "1";
-  });
+  const [personalize, setPersonalize] = useState<boolean>(false);
+  useEffect(() => {
+    try {
+      setPersonalize(window.localStorage.getItem("geopulse.feed.personalize") === "1");
+    } catch { /* ignore */ }
+  }, []);
   function togglePersonalize() {
     setPersonalize((v) => {
       const next = !v;
@@ -90,10 +92,12 @@ function FeedPage() {
     setTransport(t);
     setStoredTransport(t);
   }
-  const [autoIngest, setAutoIngest] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("geopulse.feed.autoIngest") === "1";
-  });
+  const [autoIngest, setAutoIngest] = useState<boolean>(false);
+  useEffect(() => {
+    try {
+      setAutoIngest(window.localStorage.getItem("geopulse.feed.autoIngest") === "1");
+    } catch { /* ignore */ }
+  }, []);
   function toggleAutoIngest() {
     setAutoIngest((v) => {
       const next = !v;
