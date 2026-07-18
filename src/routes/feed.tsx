@@ -715,6 +715,8 @@ function TransportToggle({
   status: "connecting" | "connected" | "error" | "idle";
   onChange: (t: RealtimeTransport) => void;
 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const dotColor =
     status === "connected"
       ? "bg-emerald-500"
@@ -725,15 +727,21 @@ function TransportToggle({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <span className={cn("h-1.5 w-1.5 rounded-full", dotColor)} />
-          {active === "websocket" ? (
-            <Wifi className="h-3.5 w-3.5" />
+        <Button variant="outline" size="sm" className="gap-1.5" suppressHydrationWarning>
+          <span className={cn("h-1.5 w-1.5 rounded-full", dotColor)} suppressHydrationWarning />
+          {mounted ? (
+            active === "websocket" ? (
+              <Wifi className="h-3.5 w-3.5" />
+            ) : (
+              <Radio className="h-3.5 w-3.5" />
+            )
           ) : (
-            <Radio className="h-3.5 w-3.5" />
+            <Radio className="h-3.5 w-3.5 opacity-0" />
           )}
-          <span className="text-xs font-medium uppercase">{active}</span>
-          {fellBack && (
+          <span className="text-xs font-medium uppercase" suppressHydrationWarning>
+            {mounted ? active : "…"}
+          </span>
+          {mounted && fellBack && (
             <span className="rounded-full bg-amber-500/15 px-1.5 text-[10px] font-semibold text-amber-500">
               fallback
             </span>
