@@ -801,10 +801,14 @@ function Pagination({
   onChange: (page: number) => void;
 }) {
   const pages = useMemo(() => {
+    // Show all pages when there are few; otherwise a windowed range with ellipses
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1) as (number | "…")[];
+    }
     const set = new Set<number>();
     set.add(1);
     set.add(totalPages);
-    for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+    for (let i = currentPage - 2; i <= currentPage + 2; i++) {
       if (i >= 1 && i <= totalPages) set.add(i);
     }
     const sorted = Array.from(set).sort((a, b) => a - b);
